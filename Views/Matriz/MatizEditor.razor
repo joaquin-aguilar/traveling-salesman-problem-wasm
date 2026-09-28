@@ -1,0 +1,124 @@
+@namespace traveling_salesman_problem_wasm.Views.Matriz
+
+<div class="editor-de-matriz">
+    <div class="matriz-controles">
+        <label>
+            Tamaño de la matriz (N x N):
+            <input type="number" min="@Minimo" max="@Maximo" @bind="tamano" @bind:event="oninput" @bind:after="GenerarMatriz" @onchange="@(e => AlCambiarTamano(e))">
+        </label>
+            <button @onclick="AleatorizarPesos">aleatorizar</button>
+    </div>
+
+    @if (matrizPesos != null)
+    {
+        <table class="matriz-grilla">
+            <tbody>
+                @for (int fila = 0; fila < tamano; fila++)
+                {
+                    int fila_copia = fila;
+                    <tr>
+                        @for (int columna = 0; columna < tamano; columna++)
+                        {
+                            int columna_copia = columna;
+                            bool esEditable = fila < columna; 
+                            
+                            <td class="@(esEditable ? "celda-editable" : "celda-bloqueada")">
+                                <input type="number"
+                                       min="1"
+                                       step="1"
+                                       value="@matrizPesos[fila_copia][columna_copia]"
+                                       disabled="@(!esEditable)"
+                                       @onchange="@(e => AlCambiarCelda(fila_copia, columna_copia, e))" />
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Minimo { get; set; }
+    [Parameter]
+    public int Maximo { get; set; }
+    [Parameter] public EventCallback<int[][]> MatrizCambiada { get; set; }
+    private int tamano; 
+
+    private int[][]? matrizPesos;
+    protected override async Task OnInitializedAsync()
+    {
+        tamano = Minimo;
+        GenerarMatriz();
+        await MatrizCambiada.InvokeAsync(matrizPesos);
+    }
+
+    private void GenerarMatriz()
+    {
+        if (tamano < Minimo) tamano = Minimo;
+        if (tamano > Maximo) tamano = Maximo;
+
+        int[][]? nuevaMatriz = new int[tamano][];
+        for (int i = 0; i < tamano; i++)
+        {
+            nuevaMatriz[i] = new int[tamano];
+            for (int j = 0; j < tamano; j++)
+                nuevaMatriz[i][j] = 1;
+            nuevaMatriz[i][i] = 0;
+        }
+
+        if (matrizPesos != null)
+        {
+            int tamanoValido = Math.Min(matrizPesos.Length, tamano);
+            for (int i = 0; i < tamanoValido; i++)
+            {
+                for (int j = 0; j < tamanoValido; j++)
+                {
+                    nuevaMatriz[i][j] = matrizPesos[i][j];
+
+                    if(i == j)
+                        nuevaMatriz[i][j] = 0;
+                }
+            }
+        }
+
+        matrizPesos = nuevaMatriz;
+        StateHasChanged();
+    }
+    private async Task AleatorizarPesos()
+    {
+        if(matrizPesos == null)
+            return;
+        
+        Random generadorNuerosAleatorios = new Random();
+        for(int i = 0; i < matrizPesos.Length; i++)
+            for(int j = 0; j < matrizPesos.Length; j++)
+                if(i < j)
+                {
+                    int costo  = generadorNuerosAleatorios.Next(100, 1501);
+                    matrizPesos[i][j] = costo;
+                    matrizPesos[j][i] = costo;
+                }
+        await MatrizCambiada.InvokeAsync(matrizPesos);
+    }
+    private async Task AlCambiarTamano(ChangeEventArgs e)
+    {
+        if(matrizPesos == null)
+            return;
+
+        await MatrizCambiada.InvokeAsync(matrizPesos);
+    }
+    private async Task AlCambiarCelda(int row, int col, ChangeEventArgs e)
+    {
+        if (matrizPesos == null) 
+            return;
+
+        if (int.TryParse(e.Value?.ToString(), out int value))
+        {
+            matrizPesos[row][col] = value;
+            matrizPesos[col][row] = value;
+            await MatrizCambiada.InvokeAsync(matrizPesos);
+        }
+    }
+}

@@ -1,0 +1,83 @@
+@page "/tsp"
+@using System.Diagnostics
+@using traveling_salesman_problem_wasm.Algorithms
+@using traveling_salesman_problem_wasm.Models
+@using traveling_salesman_problem_wasm.Views.Matriz
+
+<PageTitle>travel salesman problem</PageTitle>
+<h1>Calcular por fuerza bruta</h1>
+<div class="matriz-pesos">
+    <h3>Ingresa a continuación una matriz de pesos completa y simetrica o generala aleatoriamente</h3>
+    <MatizEditor Minimo="5" Maximo="15" MatrizCambiada="ManejadorCambiosMatriz" />
+</div>
+<div class="entrada-vertice">
+    <input type="number" min="0" max="@(matrizActual != null ? matrizActual.Length - 1 : 0)" @bind="verticeInicio" @bind:event="oninput")">
+</div>
+<button class="btn btn-primary" @onclick="Procesar" disabled="@estaProcesando">
+    Procesar
+</button>
+<p role="status">@ciclosStr</p>
+<p role="status">@rutaStr</p>
+<p role="status">@costoStr</p>
+<p role="status">@tiempoStr</p>
+@code {
+    private GrafoPonderado? grafoPonderado = null;
+    private int[][]? matrizActual = null;
+    private bool estaProcesando = false;
+    private string? ciclosStr = "";
+    private string? rutaStr = "";
+    private string? costoStr = "";
+    private string? tiempoStr = "";
+    private int verticeInicio;
+
+    private void ManejadorCambiosMatriz(int[][]? matriz) 
+    {
+        matrizActual = matriz;
+        if(matrizActual != null)
+            verticeInicio = Math.Min(verticeInicio, matrizActual.Length -1);
+    }
+
+    private async Task Procesar()
+    {
+        if (estaProcesando)
+            return;
+
+        estaProcesando = true;
+        rutaStr = "Procesando. . .";
+        StateHasChanged();
+
+        if (matrizActual == null)
+        {
+            rutaStr = "La matriz de adyacencia no existe!";
+            estaProcesando = false;
+            return;
+        }
+
+        grafoPonderado = new GrafoPonderado(matrizActual.Length);
+        for (int i = 0; i < matrizActual.Length; i++)
+            for (int j = 0; j < matrizActual.Length; j++)
+                if (i < j)
+                    grafoPonderado.AsingarPeso(i, j, matrizActual[i][j]);
+
+        if (!grafoPonderado.EsGrafoValido())
+        {
+            rutaStr = "grafo invalido!";
+            estaProcesando = false;
+            return;
+        }
+
+        ProblemaTSP problema = new ProblemaTSP(grafoPonderado, verticeInicio);
+        FuerzaBrutaTSP fuerzaBruta = new FuerzaBrutaTSP(problema);
+
+        Stopwatch? timer = Stopwatch.StartNew();
+        SolucionTSP solucion = await Task.Run(() => fuerzaBruta.Resolver());
+        timer.Stop();
+
+        ciclosStr = $"Ciclos hamiltonianos posibles: {fuerzaBruta.CiclosPosibles()}";
+        rutaStr = $"Ruta: {string.Join(" -> ", solucion.Ruta)}";
+        costoStr = $"Costo: {solucion.CostoTotal}";
+        tiempoStr = $"Tiempo: {timer.Elapsed.ToString(@"m\:ss\:fff")}";
+
+        estaProcesando = false; 
+    }
+}
