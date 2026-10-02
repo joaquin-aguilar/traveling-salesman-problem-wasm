@@ -70,6 +70,6 @@ internal class FuerzaBrutaTSP
     }
     public int CiclosPosibles()
     {
-        return MathUtils.Factorial(_problemaTSP.NumeroVertices - 1) / 2;
+        return CalculosMatematica.Factorial(_problemaTSP.NumeroVertices - 1) / 2;
     }
 }
