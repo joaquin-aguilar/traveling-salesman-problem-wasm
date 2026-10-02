@@ -3,19 +3,25 @@
 @using traveling_salesman_problem_wasm.Algorithms
 @using traveling_salesman_problem_wasm.Models
 @using traveling_salesman_problem_wasm.Views.Matriz
+@using traveling_salesman_problem_wasm.Views.Graphviz
 
 <PageTitle>travel salesman problem</PageTitle>
 <h1>Calcular por fuerza bruta</h1>
+<h2>@RendererInfo.Name, @RendererInfo.IsInteractive</h2>
 <div class="matriz-pesos">
     <h3>Ingresa a continuación una matriz de pesos completa y simetrica o generala aleatoriamente</h3>
     <MatizEditor Minimo="5" Maximo="15" MatrizCambiada="ManejadorCambiosMatriz" />
 </div>
 <div class="entrada-vertice">
-    <input type="number" min="0" max="@(matrizActual != null ? matrizActual.Length - 1 : 0)" @bind="verticeInicio" @bind:event="oninput")">
+    <label for="">Vértice de origen:  
+        <input type="number" min="0" max="@(matrizActual != null ? matrizActual.Length - 1 : 0)" @bind="verticeInicio" @bind:event="oninput">
+    </label>
+    
 </div>
 <button class="btn btn-primary" @onclick="Procesar" disabled="@estaProcesando">
     Procesar
 </button>
+<GraphvizRender Matriz="matrizActual" Ruta="ultimaSolucion" NombreGrafico="Grafo_Ponderado_Completo"/>
 <p role="status">@ciclosStr</p>
 <p role="status">@rutaStr</p>
 <p role="status">@costoStr</p>
@@ -28,6 +34,7 @@
     private string? rutaStr = "";
     private string? costoStr = "";
     private string? tiempoStr = "";
+    private List<int>? ultimaSolucion;
     private int verticeInicio;
 
     private void ManejadorCambiosMatriz(int[][]? matriz) 
@@ -35,6 +42,8 @@
         matrizActual = matriz;
         if(matrizActual != null)
             verticeInicio = Math.Min(verticeInicio, matrizActual.Length -1);
+
+        LimpiarVariables();
     }
 
     private async Task Procesar()
@@ -43,6 +52,7 @@
             return;
 
         estaProcesando = true;
+        LimpiarVariables();
         rutaStr = "Procesando. . .";
         StateHasChanged();
 
@@ -73,11 +83,22 @@
         SolucionTSP solucion = await Task.Run(() => fuerzaBruta.Resolver());
         timer.Stop();
 
+        ultimaSolucion = solucion.Ruta;
         ciclosStr = $"Ciclos hamiltonianos posibles: {fuerzaBruta.CiclosPosibles()}";
-        rutaStr = $"Ruta: {string.Join(" -> ", solucion.Ruta)}";
+        List<char> resultado = solucion.Ruta.Select(i => (char)('A' + i)).ToList();
+        rutaStr = $"Ruta: {string.Join(" -> ", resultado)}";
         costoStr = $"Costo: {solucion.CostoTotal}";
         tiempoStr = $"Tiempo: {timer.Elapsed.ToString(@"m\:ss\:fff")}";
 
         estaProcesando = false; 
+    }
+
+    private void LimpiarVariables()
+    {
+            ciclosStr = "";
+            rutaStr = "";
+            costoStr = "";
+            tiempoStr = "";
+            ultimaSolucion = null;
     }
 }

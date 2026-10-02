@@ -1,0 +1,70 @@
+@using traveling_salesman_problem_wasm.Algorithms.Utilidades
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="graphviz-render">
+    @if (error is not null)
+    {
+        <p style="color:red; white-space:pre-wrap;">@error</p>
+    }
+    else
+    {
+        @((MarkupString)imagenSVG)
+    }
+</div>
+
+@code {
+    [Parameter] public int[][]? Matriz { get; set; }
+    [Parameter] public int VerticeInicio { get; set; } = 0;
+    [Parameter] public List<int>? Ruta { get; set; }
+    [Parameter] public string? NombreGrafico { get; set; }
+
+    private IJSObjectReference? _json;
+    private string imagenSVG = "";
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_json is not null)
+            await RenderAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool primerRender)
+    {
+        if (primerRender)
+        {
+            _json = await JS.InvokeAsync<IJSObjectReference>("import", "./js/graphvizWasm.js");
+            await RenderAsync();
+            StateHasChanged();
+        }
+    }
+
+    private async Task RenderAsync()
+    {
+        error = null;
+        try
+        {
+            if(string.IsNullOrEmpty(NombreGrafico))
+                NombreGrafico = "Grafo ponderado";
+            string dot = ConversorDotFiles.CrearDotFile(Matriz, VerticeInicio, camino: Ruta, nombreGrafico: NombreGrafico);
+            imagenSVG = string.IsNullOrEmpty(dot) ? "" : await _json!.InvokeAsync<string>("renderDot", dot);
+        }
+        catch (ArgumentException ex)
+        {
+            error = ex.Message;
+        }
+        catch (JSException ex)
+        {
+            error = $"Error al renderizar el grafo:\n{ex.Message}";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_json is not null)
+        {
+            try { await _json.DisposeAsync(); }
+            catch (JSDisconnectedException) {}
+        }
+    }
+}
