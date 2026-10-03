@@ -1,0 +1,96 @@
+<svg width="346pt" height="329pt" viewBox="0.00 0.00 346.00 329.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 325.02)">
+<title>Grafo_Ponderado_Completo</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-325.02 341.61,-325.02 341.61,4 -4,4"/>
+<!-- Lima -->
+<g id="node1" class="node">
+<title>Lima</title>
+<ellipse fill="none" stroke="black" cx="93.87" cy="-46.97" rx="31.42" ry="31.42"/>
+<text xml:space="preserve" text-anchor="middle" x="93.87" y="-42.77" font-family="Times,serif" font-size="14.00">Lima</text>
+</g>
+<!-- Arequipa -->
+<g id="node2" class="node">
+<title>Arequipa</title>
+<ellipse fill="none" stroke="black" cx="249.1" cy="-46.97" rx="46.97" ry="46.97"/>
+<text xml:space="preserve" text-anchor="middle" x="249.1" y="-42.77" font-family="Times,serif" font-size="14.00">Arequipa</text>
+</g>
+<!-- Lima&#45;&#45;Arequipa -->
+<g id="edge1" class="edge">
+<title>Lima--Arequipa</title>
+<path fill="none" stroke="black" d="M125.66,-46.97C147.57,-46.97 177.07,-46.97 201.73,-46.97"/>
+<text xml:space="preserve" text-anchor="middle" x="152.16" y="-51.17" font-family="Times,serif" font-size="14.00">770</text>
+</g>
+<!-- Cusco -->
+<g id="node3" class="node">
+<title>Cusco</title>
+<ellipse fill="none" stroke="black" cx="171.48" cy="-285.84" rx="35.18" ry="35.18"/>
+<text xml:space="preserve" text-anchor="middle" x="171.48" y="-281.64" font-family="Times,serif" font-size="14.00">Cusco</text>
+</g>
+<!-- Lima&#45;&#45;Cusco -->
+<g id="edge2" class="edge">
+<title>Lima--Cusco</title>
+<path fill="none" stroke="black" d="M103.7,-77.22C118.22,-121.91 145.32,-205.32 160.49,-251.99"/>
+<text xml:space="preserve" text-anchor="middle" x="117.85" y="-168.06" font-family="Times,serif" font-size="14.00">1017</text>
+</g>
+<!-- Trujillo -->
+<g id="node4" class="node">
+<title>Trujillo</title>
+<ellipse fill="none" stroke="black" cx="297.07" cy="-194.6" rx="40.54" ry="40.54"/>
+<text xml:space="preserve" text-anchor="middle" x="297.07" y="-190.4" font-family="Times,serif" font-size="14.00">Trujillo</text>
+</g>
+<!-- Lima&#45;&#45;Trujillo -->
+<g id="edge3" class="edge">
+<title>Lima--Trujillo</title>
+<path fill="none" stroke="black" d="M119.61,-65.66C156.34,-92.36 223.82,-141.38 264.15,-170.68"/>
+<text xml:space="preserve" text-anchor="middle" x="180.03" y="-121.4" font-family="Times,serif" font-size="14.00">662</text>
+</g>
+<!-- Chiclayo -->
+<g id="node5" class="node">
+<title>Chiclayo</title>
+<ellipse fill="none" stroke="black" cx="45.9" cy="-194.6" rx="45.9" ry="45.9"/>
+<text xml:space="preserve" text-anchor="middle" x="45.9" y="-190.4" font-family="Times,serif" font-size="14.00">Chiclayo</text>
+</g>
+<!-- Lima&#45;&#45;Chiclayo -->
+<g id="edge4" class="edge">
+<title>Lima--Chiclayo</title>
+<path fill="none" stroke="black" d="M84.05,-77.2C77.17,-98.37 67.87,-127 60.17,-150.69"/>
+<text xml:space="preserve" text-anchor="middle" x="61.91" y="-117.2" font-family="Times,serif" font-size="14.00">922</text>
+</g>
+<!-- Arequipa&#45;&#45;Cusco -->
+<g id="edge5" class="edge">
+<title>Arequipa--Cusco</title>
+<path fill="none" stroke="black" d="M234.5,-91.9C219.4,-138.39 196.14,-209.96 182.51,-251.92"/>
+<text xml:space="preserve" text-anchor="middle" x="197.45" y="-177.81" font-family="Times,serif" font-size="14.00">545</text>
+</g>
+<!-- Arequipa&#45;&#45;Trujillo -->
+<g id="edge6" class="edge">
+<title>Arequipa--Trujillo</title>
+<path fill="none" stroke="black" d="M263.75,-92.06C270.37,-112.42 278.1,-136.22 284.45,-155.76"/>
+<text xml:space="preserve" text-anchor="middle" x="263.7" y="-128.42" font-family="Times,serif" font-size="14.00">342</text>
+</g>
+<!-- Arequipa&#45;&#45;Chiclayo -->
+<g id="edge7" class="edge">
+<title>Arequipa--Chiclayo</title>
+<path fill="none" stroke="black" d="M210.88,-74.74C174.32,-101.3 119.53,-141.1 83.26,-167.45"/>
+<text xml:space="preserve" text-anchor="middle" x="136.46" y="-125.37" font-family="Times,serif" font-size="14.00">822</text>
+</g>
+<!-- Cusco&#45;&#45;Trujillo -->
+<g id="edge8" class="edge">
+<title>Cusco--Trujillo</title>
+<path fill="none" stroke="black" d="M200.3,-264.91C219.27,-251.12 244.16,-233.04 263.95,-218.66"/>
+<text xml:space="preserve" text-anchor="middle" x="221.32" y="-246.21" font-family="Times,serif" font-size="14.00">770</text>
+</g>
+<!-- Cusco&#45;&#45;Chiclayo -->
+<g id="edge9" class="edge">
+<title>Cusco--Chiclayo</title>
+<path fill="none" stroke="black" d="M142.67,-264.91C125,-252.07 102.2,-235.5 83.16,-221.67"/>
+<text xml:space="preserve" text-anchor="middle" x="102.93" y="-247.86" font-family="Times,serif" font-size="14.00">666</text>
+</g>
+<!-- Trujillo&#45;&#45;Chiclayo -->
+<g id="edge10" class="edge">
+<title>Trujillo--Chiclayo</title>
+<path fill="none" stroke="black" d="M256.16,-194.6C211.12,-194.6 138.88,-194.6 91.91,-194.6"/>
+<text xml:space="preserve" text-anchor="middle" x="160.76" y="-198.8" font-family="Times,serif" font-size="14.00">1094</text>
+</g>
+</g>
+</svg>

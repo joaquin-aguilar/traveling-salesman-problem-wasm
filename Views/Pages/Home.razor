@@ -1,7 +1,76 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Acerca del problema</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Problema del agente viajero (Travelling Salesman Problem)</h1>
 
-Welcome to your new app.
+<article class="articulo-problema">
+    <p>
+        <strong>Problema del Agente Viajero</strong> también conocido como <strong>TSP (Travelling Salesman Problem)</strong>.
+        Es un problema que involucra teoria de grafos. Su planteamiento es sencillo: un viajero necesita visitar un conjunto de
+        ciudades, pasando por cada una de ellas exactamente una vez, y finalmente regresar a la ciudad desde la que comenzó. El 
+        objetivo es encontrar la ruta cuya distancia total sea mínima.
+    </p>
+    
+    <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRkkvTRpp9mayuDH3wZQtEvOfmeZBpZyoVQS0IwxUrHQCpGwmI0pjwVuhM&s=10" alt="Motivación TSP vida real">
+
+    <p>
+        Aunque puede parecer sencillo llegar a una solucion, encontrar la ruta se vuelve cada vez más difícil a medida que aumenta el
+        número de ciudades. El motivo principal es la enorme cantidad de rutas posibles que deben considerarse para determinar cuál de
+        ellas tiene el menor costo.
+    </p>
+
+    <p>
+        Para <strong>n</strong> ciudades, si se fija la ciudad de origen, existen <strong>(n - 1)!/2</strong> posibles ordenamientos de 
+        las ciudades restantes. Esto significa que agregar solamente unas pocas ciudades puede incrementar enormemente la cantidad de rutas 
+        que un algoritmo tendría que analizar. Esta característica hace que el TSP sea un problema considerablemente dificil de resolver con
+        algoritmos basados en iteraciones basadas en reglas (Fuerza bruta y Backtracking).
+    </p>
+
+    <p>
+        Para estudiar el problema formalmente, necesitamos transformar la situación planteada en un modelo matemático. Las ciudades pueden representarse
+        mediante <strong>vértices</strong> y las conexiones entre ellas mediante <strong>aristas</strong>. Además, cada conexión tendrá asociada una distancia
+        (costo o peso). De esta manera, podemos representar el problema mediante un <strong>grafo ponderado</strong>.
+    </p>
+
+    <img src="imagenes/ejemplo-ciudades.svg"
+        alt="Ejemplo de grafo ponderado con ciudades y distancias">
+
+    <p>
+        En el caso del TSP, normalmente se utiliza un <strong>grafo completo</strong>, es decir, un grafo en el que existe una conexión de pares en todas las ciudades. 
+        El peso de cada arista representa el costo de viajar entre las dos ciudades que conecta.
+    </p>
+
+    <p>
+        Sin embargo, conocer el grafo no es suficiente. También necesitamos establecer qué característica debe cumplir una solución válida. La ruta buscada debe 
+        visitar todos los vértices exactamente una vez y regresar al vértice inicial. En teoría de grafos, esta estructura corresponde a un <strong>ciclo hamiltoniano</strong>.
+    </p>
+
+    <p>
+        Por lo tanto, el TSP puede entenderse como el problema de encontrar, dentro de un grafo ponderado completo, el <strong>ciclo hamiltoniano de menor costo</strong>.
+    </p>
+
+    <p>
+        Una vez establecido este modelo, podemos expresar matemáticamente el costo de una ruta. Si una ruta está formada por la secuencia de ciudades
+        <strong>v₁, v₂, ..., vₙ, v₁</strong>, su costo total puede calcularse sumando los pesos de todas las aristas recorridas:
+    </p>
+
+    <p class="formula">
+        C = w(v₁,v₂) + w(v₂,v₃) + ... + w(vₙ₋₁,vₙ) + w(vₙ,v₁)
+    </p>
+
+    <p>
+        El objetivo del TSP consiste entonces en encontrar la ruta que minimice este valor:
+    </p>
+
+    <p class="formula">
+        min C
+    </p>
+
+    <p>
+        Estos conceptos permiten pasar de una situación cotidiana, como planificar el recorrido
+        de un viajero, a una representación matemática que puede ser procesada por un programa.
+        A partir de esta representación podremos estudiar por qué el número de soluciones posibles
+        crece tan rápidamente y cómo diseñar algoritmos capaces de encontrar la ruta óptima.
+    </p>
+</article>
