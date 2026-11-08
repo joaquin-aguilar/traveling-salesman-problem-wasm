@@ -2,7 +2,7 @@ namespace traveling_salesman_problem_wasm.Models;
 
 internal class GrafoPonderado
 {
-    private static readonly int _grado_minimo = 5;
+    private static readonly int _grado_minimo = 2;
     private readonly int [,] _matrizPesos;
     public int NumeroVertices {get;}
     public bool EsDirigido { get; }
