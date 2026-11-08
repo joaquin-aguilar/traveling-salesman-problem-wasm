@@ -1,75 +1,96 @@
+using traveling_salesman_problem_wasm.Algorithms.Utilidades;
+using traveling_salesman_problem_wasm.Models;
+
 namespace traveling_salesman_problem_wasm.Algorithms;
 
-using traveling_salesman_problem_wasm.Models;
-using traveling_salesman_problem_wasm.Algorithms.Utilidades;
-
+/// <summary>
+/// Prueba todas las rutas posibles (backtracking) y devuelve la de menor costo.
+/// Se descartan las rutas parciales que ya cuestan más que la mejor encontrada.
+/// </summary>
 internal class FuerzaBrutaTSP
 {
-    private ProblemaTSP _problemaTSP;
-    
+    private readonly ProblemaTSP _problema;
 
-    public FuerzaBrutaTSP(ProblemaTSP problemaTSP)
+    private int[] _rutaActual = Array.Empty<int>();
+    private bool[] _visitado = Array.Empty<bool>();
+    private int[] _mejorRuta = Array.Empty<int>();
+    private int _mejorCosto;
+
+    public FuerzaBrutaTSP(ProblemaTSP problema)
     {
-        if(problemaTSP is null)
-            throw new ArgumentNullException("Para resolver un TSP con fuerza bruta se necesita un problema valido.");
-
-        _problemaTSP = problemaTSP;
+        ArgumentNullException.ThrowIfNull(problema);
+        _problema = problema;
     }
-    
-    public SolucionTSP Resolver()
+
+    public SolucionTSP? Resolver()
     {
-        
-        int[] rutaActual = new int[_problemaTSP.NumeroVertices];
-        bool[] ciudadVisitada = new bool[_problemaTSP.NumeroVertices];
+        int n = _problema.NumeroVertices;
+        int inicio = _problema.VerticeInicial;
 
-        int[] mejorRuta = new int[_problemaTSP.NumeroVertices];
-        int mejorCosto = int.MaxValue;
+        _rutaActual = new int[n];
+        _visitado = new bool[n];
+        _mejorRuta = new int[n];
+        _mejorCosto = int.MaxValue;
 
-        rutaActual[0] = _problemaTSP.VericeInicial;
-        ciudadVisitada[_problemaTSP.VericeInicial] = true;
+        _rutaActual[0] = inicio;
+        _visitado[inicio] = true;
 
-        void Buscar(int posicionEnRuta, int costoAcumulado)
+        Buscar(posicion: 1, costoAcumulado: 0);
+
+        if (_mejorCosto == int.MaxValue)
+            return null;
+
+        var ruta = _mejorRuta.ToList();
+        ruta.Add(inicio);
+
+        return new SolucionTSP(_problema, ruta, _mejorCosto);
+    }
+
+    /// <summary>Cantidad de ciclos distintos que existen: (n-1)! o (n-1)!/2 si es no dirigido.</summary>
+    public long CiclosPosibles()
+    {
+        long ciclos = CalculosMatematica.Factorial(_problema.NumeroVertices - 1);
+        return _problema.EsDirigido ? ciclos : ciclos / 2;
+    }
+
+    private void Buscar(int posicion, int costoAcumulado)
+    {
+        if (costoAcumulado >= _mejorCosto)
+            return;
+
+        int n = _problema.NumeroVertices;
+        int anterior = _rutaActual[posicion - 1];
+
+        // Ruta completa: solo falta volver al vértice inicial.
+        if (posicion == n)
         {
-            bool rutaCompleta = posicionEnRuta == _problemaTSP.NumeroVertices;
-            if (rutaCompleta)
-            {
-                int ultimaCiudad = rutaActual[_problemaTSP.NumeroVertices - 1];
-                int primeraCiudad = rutaActual[0];
-                int costoTotal = costoAcumulado + _problemaTSP.ObtenerPeso(ultimaCiudad, primeraCiudad);
+            int inicio = _rutaActual[0];
 
-                bool esMejorQueLaAnterior = costoTotal < mejorCosto;
-                if (esMejorQueLaAnterior)
-                {
-                    mejorCosto = costoTotal;
-                    Array.Copy(rutaActual, mejorRuta, _problemaTSP.NumeroVertices);
-                }
-
+            if (!_problema.ExisteArista(anterior, inicio))
                 return;
-            }
 
-            for (int ciudad = 0; ciudad < _problemaTSP.NumeroVertices; ciudad++)
+            int costoTotal = costoAcumulado + _problema.ObtenerPeso(anterior, inicio);
+
+            if (costoTotal < _mejorCosto)
             {
-                if (ciudadVisitada[ciudad])
-                    continue;
-
-                int ciudadAnterior = rutaActual[posicionEnRuta - 1];
-                int costoDelTramo = _problemaTSP.ObtenerPeso(ciudadAnterior, ciudad);
-
-                ciudadVisitada[ciudad] = true;
-                rutaActual[posicionEnRuta] = ciudad;
-                Buscar(posicionEnRuta + 1, costoAcumulado + costoDelTramo);
-                ciudadVisitada[ciudad] = false;
+                _mejorCosto = costoTotal;
+                Array.Copy(_rutaActual, _mejorRuta, n);
             }
+
+            return;
         }
 
-        Buscar(posicionEnRuta: 1, costoAcumulado: 0);
-        List<int> rutaFinal = mejorRuta.ToList();
-        rutaFinal.Add(_problemaTSP.VericeInicial);
-        SolucionTSP solucion = new SolucionTSP(_problemaTSP, rutaFinal, mejorCosto);
-        return solucion;
-    }
-    public int CiclosPosibles()
-    {
-        return CalculosMatematica.Factorial(_problemaTSP.NumeroVertices - 1) / 2;
+        for (int ciudad = 0; ciudad < n; ciudad++)
+        {
+            if (_visitado[ciudad] || !_problema.ExisteArista(anterior, ciudad))
+                continue;
+
+            _visitado[ciudad] = true;
+            _rutaActual[posicion] = ciudad;
+
+            Buscar(posicion + 1, costoAcumulado + _problema.ObtenerPeso(anterior, ciudad));
+
+            _visitado[ciudad] = false;
+        }
     }
 }
