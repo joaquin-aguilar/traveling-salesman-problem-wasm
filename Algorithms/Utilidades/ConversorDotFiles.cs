@@ -2,109 +2,108 @@ using System.Text;
 
 namespace traveling_salesman_problem_wasm.Algorithms.Utilidades;
 
+/// <summary>Convierte una matriz de pesos en texto DOT (Graphviz).</summary>
 public static class ConversorDotFiles
 {
-    public static string CrearDotFile(int[][]? matriz, int VerticeInicio = 0, string nombreGrafico = "G", IReadOnlyList<int>? camino = null)
+    public static string CrearDotFile(
+        int[][]? matriz,
+        int verticeInicio = 0,
+        string nombreGrafico = "G",
+        IReadOnlyList<int>? camino = null,
+        bool esDirigido = false,
+        IReadOnlyList<string>? etiquetas = null)
     {
         if (matriz is null || matriz.Length == 0)
             return string.Empty;
 
         int n = matriz.Length;
 
-        Validar(matriz, n);
-        var aristasRecorrido = CrearAristasRecorrido(camino, matriz, n, VerticeInicio);
+        if (matriz.Any(fila => fila is null || fila.Length != n))
+            throw new ArgumentException("La matriz debe ser cuadrada.", nameof(matriz));
 
-        var constructorDot = new StringBuilder();
-        constructorDot.AppendLine($"graph {nombreGrafico} {{");
-        constructorDot.AppendLine("  layout=circo;");
-        constructorDot.AppendLine("  normalize=true;");
-        constructorDot.AppendLine("  overlap=false;");
-        constructorDot.AppendLine("  splines=true;");
-        constructorDot.AppendLine("  node [shape=circle];");
+        HashSet<(int, int)> aristasRecorrido = CrearAristasRecorrido(camino, matriz, esDirigido);
 
-        for (int i = 0; i < n; i++)
-            constructorDot.AppendLine($"  {(char)('A' + i)};");
+        string tipoGrafo = esDirigido ? "digraph" : "graph";
+        string conector = esDirigido ? "->" : "--";
 
+        var dot = new StringBuilder();
+        dot.AppendLine($"{tipoGrafo} {nombreGrafico} {{");
+        dot.AppendLine("  layout=circo;");
+        dot.AppendLine("  normalize=true;");
+        dot.AppendLine("  overlap=false;");
+        dot.AppendLine("  splines=true;");
+        dot.AppendLine("  node [shape=circle, style=filled, fillcolor=\"#eef3fb\", color=\"#315b8a\", fontname=\"Helvetica\"];");
+        dot.AppendLine("  edge [fontname=\"Helvetica\", fontsize=10];");
+
+        // Vértices
         for (int i = 0; i < n; i++)
         {
-            for (int j = i + 1; j < n; j++)
+            var atributos = new List<string>();
+
+            if (etiquetas is not null && i < etiquetas.Count && !string.IsNullOrWhiteSpace(etiquetas[i]))
+                atributos.Add($"label=\"{EscaparEtiqueta(etiquetas[i])}\"");
+
+            if (i == verticeInicio)
+                atributos.Add("fillcolor=\"#b7e4c7\", color=\"#2d6a4f\", penwidth=2");
+
+            dot.AppendLine(atributos.Count == 0
+                ? $"  {NombreVertice(i)};"
+                : $"  {NombreVertice(i)} [{string.Join(", ", atributos)}];");
+        }
+
+        // Aristas. En un grafo no dirigido se recorre solo la mitad superior de la matriz.
+        for (int i = 0; i < n; i++)
+        {
+            for (int j = esDirigido ? 0 : i + 1; j < n; j++)
             {
                 int peso = matriz[i][j];
 
-                if (peso == VerticeInicio)
+                if (i == j || peso <= 0)
                     continue;
 
-                bool estaEnRecorrido = aristasRecorrido.Contains((i, j));
-                string attrs;
-                if (estaEnRecorrido)
-                    attrs = $"label=\"{peso}\", color=\"red\", fontcolor=\"red\", penwidth=2.5";
-                else
-                    attrs = $"label=\"{peso}\"";
+                string atributos = aristasRecorrido.Contains((i, j))
+                    ? $"label=\"{peso}\", color=\"#d63384\", fontcolor=\"#d63384\", penwidth=2.5"
+                    : $"label=\"{peso}\"";
 
-                constructorDot.AppendLine($"  {(char)('A' + i)} -- {(char)('A' + j)} [{attrs}];");
+                dot.AppendLine($"  {NombreVertice(i)} {conector} {NombreVertice(j)} [{atributos}];");
             }
         }
 
-        constructorDot.AppendLine("}");
-        return constructorDot.ToString();
+        dot.AppendLine("}");
+        return dot.ToString();
     }
 
-    private static void Validar(int[][] matriz, int fila)
-    {
-        for (int i = 0; i < fila; i++)
-        {
-            if (matriz[i] is null)
-                throw new ArgumentException($"La fila {i} es null.", nameof(matriz));
+    private static string NombreVertice(int indice)
+        => indice < 26 ? ((char)('A' + indice)).ToString() : $"V{indice}";
 
-            if (matriz[i].Length != fila)
-                throw new ArgumentException($"La matriz debe ser cuadrada: la fila {i} tiene {matriz[i].Length} columnas y se esperaban {fila}.", nameof(matriz));
-        }
-    }
+    private static string EscaparEtiqueta(string etiqueta)
+        => etiqueta.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-    private static HashSet<(int, int)> CrearAristasRecorrido(IReadOnlyList<int>? cliclo, int[][] matriz, int tamano, int noEdgeValue)
+    /// <summary>
+    /// Aristas que forman el camino. Si el grafo no es dirigido se guardan
+    /// siempre como (menor, mayor) para poder buscarlas sin importar el sentido.
+    /// </summary>
+    private static HashSet<(int, int)> CrearAristasRecorrido(IReadOnlyList<int>? camino, int[][] matriz, bool esDirigido)
     {
         var aristas = new HashSet<(int, int)>();
 
-        if (cliclo is null || cliclo.Count < 2)
+        if (camino is null)
             return aristas;
 
-        foreach (int v in cliclo)
-            if (v < 0 || v >= tamano)
-                throw new ArgumentException($"El camino contiene el nodo {v}, fuera de rango (0..{tamano - 1}).", nameof(cliclo));
-
-        int _tamano = cliclo.Count;
-        bool cicloYaCerrado = cliclo[_tamano - 1] == cliclo[0];
-
-        if (cicloYaCerrado)
-            _tamano = _tamano - 1;
-
-        if (_tamano < 2)
-            return aristas;
-
-        for (int i = 0; i < _tamano; i++)
+        for (int i = 0; i < camino.Count - 1; i++)
         {
-            int a = cliclo[i];
-            int b;
+            int origen = camino[i];
+            int destino = camino[i + 1];
 
-            if (i == _tamano - 1)
-                b = cliclo[0];
-            else
-                b = cliclo[i + 1];
+            if (origen < 0 || origen >= matriz.Length || destino < 0 || destino >= matriz.Length)
+                throw new ArgumentException("El camino contiene un vértice fuera de rango.", nameof(camino));
 
-            int u = a;
-            int v = b;
+            if (matriz[origen][destino] <= 0)
+                throw new ArgumentException($"El camino usa la arista {origen}-{destino}, que no existe en la matriz.", nameof(camino));
 
-            if (a > b)
-            {
-                u = b;
-                v = a;
-            }
-
-            if (u == v || matriz[u][v] == noEdgeValue)
-                throw new ArgumentException($"El camino usa la arista {u}-{v}, que no existe en la matriz.", nameof(cliclo));
-
-            aristas.Add((u, v));
+            aristas.Add(esDirigido || origen < destino ? (origen, destino) : (destino, origen));
         }
+
         return aristas;
     }
 }
