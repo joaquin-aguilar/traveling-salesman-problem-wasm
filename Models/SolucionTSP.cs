@@ -2,32 +2,30 @@ namespace traveling_salesman_problem_wasm.Models;
 
 internal class SolucionTSP
 {
-    private readonly ProblemaTSP _problemaTSP;
-    public List<int> Ruta {get;}
-    public int CostoTotal {get;}
-    
-    public SolucionTSP(ProblemaTSP problemaTSP, List<int> ruta, int costoTotal)
+    public List<int> Ruta { get; }
+    public int CostoTotal { get; }
+
+    public SolucionTSP(ProblemaTSP problema, List<int> ruta, int costoTotal)
     {
-        if(problemaTSP is null)
-            throw new ArgumentNullException("Una solucion no puede existir sin un problema.");
+        ArgumentNullException.ThrowIfNull(problema);
+        ArgumentNullException.ThrowIfNull(ruta);
 
-        if(ruta is null or [])
-            throw new ArgumentException("La ruta no puede ser nula.");
-        
-        if(ruta.First() != ruta.Last())
-            throw new ArgumentException("La ruta no inicia y finaliza en el mismo vertice, por lo cual no cumple con un ciclo hamiltoniano.");
-        
-        List<int> indicesVertices = Enumerable.Range(0, problemaTSP.NumeroVertices).ToList();
-        HashSet<int> rutaHash = new HashSet<int>(ruta);
-        bool contieneTodos = indicesVertices.All(num => rutaHash.Contains(num));
-        List<int> cicloHamiltoniano = ruta.Skip(1).Take(ruta.Count - 2).ToList();
-        if(cicloHamiltoniano.Count != cicloHamiltoniano.Distinct().Count() || !contieneTodos)
-            throw new ArgumentException("La ruta no representa un cilo hamiltoniano.");
+        int n = problema.NumeroVertices;
 
-        if(ruta.First() != problemaTSP.VericeInicial)
-            throw new ArgumentException("La ruta no tiene como primer elemento al primer vertice.");
+        if (ruta.Count != n + 1)
+            throw new ArgumentException("La ruta debe contener todos los vértices y volver al inicio.", nameof(ruta));
 
-        _problemaTSP = problemaTSP;
+        if (ruta[0] != problema.VerticeInicial || ruta[^1] != problema.VerticeInicial)
+            throw new ArgumentException("La ruta debe empezar y terminar en el vértice inicial.", nameof(ruta));
+
+        // Los primeros n vértices deben ser todos distintos y estar en rango.
+        if (ruta.Take(n).Distinct().Count() != n || ruta.Any(v => v < 0 || v >= n))
+            throw new ArgumentException("La ruta debe visitar cada vértice exactamente una vez.", nameof(ruta));
+
+        for (int i = 0; i < n; i++)
+            if (!problema.ExisteArista(ruta[i], ruta[i + 1]))
+                throw new ArgumentException($"La ruta usa la arista {ruta[i]} -> {ruta[i + 1]}, que no existe.", nameof(ruta));
+
         Ruta = ruta;
         CostoTotal = costoTotal;
     }

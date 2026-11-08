@@ -1,31 +1,34 @@
-using System.Data;
-
 namespace traveling_salesman_problem_wasm.Models;
 
+/// <summary>Un grafo válido junto con el vértice desde el que parte el recorrido.</summary>
 internal class ProblemaTSP
 {
-    private readonly GrafoPonderado _grafoPonderado;
-    public int VericeInicial {get;}
-    public int NumeroVertices {get;}
+    private readonly GrafoPonderado _grafo;
 
-    public ProblemaTSP(GrafoPonderado grafoPonderado, int vericeInicial)
+    public int VerticeInicial { get; }
+    public int NumeroVertices => _grafo.NumeroVertices;
+    public bool EsDirigido => _grafo.EsDirigido;
+
+    public ProblemaTSP(GrafoPonderado grafo, int verticeInicial)
     {
-        if(grafoPonderado == null)
-            throw new ArgumentNullException("El grafo no puede ser nulo.");
+        ArgumentNullException.ThrowIfNull(grafo);
 
-        if(vericeInicial < 0 || vericeInicial >= grafoPonderado.NumeroVertices)
-            throw new ArgumentOutOfRangeException("El grafo no contiene un vertice con este indice.");
+        if(verticeInicial < 0 || verticeInicial >= grafo.NumeroVertices)
+            throw new ArgumentOutOfRangeException(nameof(verticeInicial), "El grafo no contiene un vértice con este índice.");
 
-        _grafoPonderado = grafoPonderado;
-        VericeInicial = vericeInicial;
-        NumeroVertices = grafoPonderado.NumeroVertices;
+        if(!grafo.EsGrafoValido())
+            throw new ArgumentException("El grafo no es válido: revisa la conectividad y el grado de los vértices.", nameof(grafo));
+
+        _grafo = grafo;
+        VerticeInicial = verticeInicial;
     }
 
-    public int ObtenerPeso(int verticeOrigen, int verticeDestino)
+    public int ObtenerPeso(int origen, int destino)
     {
-        if(!_grafoPonderado.EsGrafoValido())
-            throw new EvaluateException("El grafo no puede evaularse por que es invalido.");
-
-        return _grafoPonderado.ObtenerPeso(verticeOrigen, verticeDestino);
+        return _grafo.ObtenerPeso(origen, destino);
+    }
+    public bool ExisteArista(int origen, int destino) 
+    {
+        return _grafo.ExisteArista(origen, destino);
     }
 }
