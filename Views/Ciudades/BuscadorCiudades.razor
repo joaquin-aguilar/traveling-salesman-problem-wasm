@@ -1,0 +1,215 @@
+@namespace traveling_salesman_problem_wasm.Views.Ciudades
+@using System.Globalization
+@using System.Net.Http.Json
+@using System.Text.Json.Serialization
+@using traveling_salesman_problem_wasm.Models
+@inject HttpClient Http
+
+<div class="buscador-ciudades">
+    <div class="buscador-entrada">
+        <label for="entrada-busqueda-ciudad">Buscar ciudad</label>
+        <div class="buscador-fila">
+            <input id="entrada-busqueda-ciudad"
+                   type="search"
+                   @bind="textoBusqueda"
+                   @bind:event="oninput"
+                   @onkeydown="AlPresionarTecla"
+                   placeholder="Ej.: Cusco, Perú"
+                   disabled="@buscando" />
+            <button type="button" @onclick="Buscar" disabled="@buscando">
+                @(buscando ? "Buscando..." : "Buscar")
+            </button>
+        </div>
+        <p class="ayuda-buscador">
+            Escribe el nombre y presiona Enter o Buscar. Los resultados provienen de
+            <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener">Nominatim (OpenStreetMap)</a>.
+        </p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(mensaje))
+    {
+        <p>@mensaje</p>
+    }
+
+    @if (resultados.Count > 0)
+    {
+        <ul class="resultados-ciudad">
+            @foreach (var resultado in resultados)
+            {
+                <li>
+                    <div class="resultado-texto">
+                        <strong>@resultado.Ciudad.Nombre</strong>
+                        <span>@resultado.Descripcion</span>
+                    </div>
+                    <button type="button"
+                            @onclick="() => Agregar(resultado)"
+                            disabled="@(Ciudades.Count >= Maximo)">
+                        Agregar
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+
+    <div class="ciudades-elegidas">
+        <h4>Ciudades seleccionadas (@Ciudades.Count)</h4>
+
+        @if (Ciudades.Count == 0)
+        {
+            <p class="sin-ciudades">Todavía no agregaste ciudades.</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var ciudad in Ciudades)
+                {
+                    <li>
+                        <span class="punto-ciudad" aria-hidden="true"></span>
+                        <span class="nombre-ciudad">@ciudad.Nombre</span>
+                        <span class="coordenadas-ciudad">
+                            @ciudad.Latitud.ToString("0.0000", CultureInfo.InvariantCulture),
+                            @ciudad.Longitud.ToString("0.0000", CultureInfo.InvariantCulture)
+                        </span>
+                        <button type="button" @onclick="() => Quitar(ciudad)">
+                            Quitar
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<CiudadOSM> Ciudades { get; set; } = Array.Empty<CiudadOSM>();
+
+    [Parameter]
+    public EventCallback<CiudadOSM> AlAgregar { get; set; }
+
+    [Parameter]
+    public EventCallback<CiudadOSM> AlQuitar { get; set; }
+
+    [Parameter]
+    public int Maximo { get; set; } = 20;
+
+    private string textoBusqueda = string.Empty;
+    private string? mensaje;
+    private bool buscando;
+    private List<ResultadoBusqueda> resultados = new();
+
+    private async Task AlPresionarTecla(KeyboardEventArgs evento)
+    {
+        if (evento.Key == "Enter")
+            await Buscar();
+    }
+
+    private async Task Buscar()
+    {
+        string consulta = textoBusqueda.Trim();
+
+        if (consulta.Length < 3)
+        {
+            mensaje = "Escribe al menos 3 caracteres para buscar una ciudad.";
+            resultados.Clear();
+            return;
+        }
+
+        buscando = true;
+        mensaje = null;
+        resultados.Clear();
+
+        try
+        {
+            string url = "https://nominatim.openstreetmap.org/search?format=jsonv2"
+                + $"&q={Uri.EscapeDataString(consulta)}"
+                + "&limit=7&addressdetails=1&accept-language=es&featureType=settlement";
+
+            List<ResultadoNominatim> encontrados =
+                await Http.GetFromJsonAsync<List<ResultadoNominatim>>(url) ?? new List<ResultadoNominatim>();
+
+            resultados = encontrados
+                .Select(Convertir)
+                .Where(resultado => resultado is not null)
+                .Select(resultado => resultado!)
+                .Where(resultado => !YaSeleccionada(resultado.Ciudad))
+                .ToList();
+
+            if (resultados.Count == 0)
+            {
+                mensaje = "No se encontraron ciudades nuevas con ese nombre.";
+            }
+        }
+        catch (Exception ex)
+        {
+            mensaje = $"No se pudo consultar el buscador de ciudades: {ex.Message}";
+        }
+        finally
+        {
+            buscando = false;
+        }
+    }
+
+    private async Task Agregar(ResultadoBusqueda resultado)
+    {
+        if (Ciudades.Count >= Maximo)
+        {
+            mensaje = $"Ya alcanzaste el máximo de {Maximo} ciudades.";
+            return;
+        }
+
+        if (YaSeleccionada(resultado.Ciudad))
+        {
+            mensaje = "Esa ciudad ya está en la lista.";
+            return;
+        }
+
+        await AlAgregar.InvokeAsync(resultado.Ciudad);
+
+        mensaje = null;
+        resultados.Clear();
+        textoBusqueda = string.Empty;
+    }
+
+    private async Task Quitar(CiudadOSM ciudad)
+    {
+        mensaje = null;
+        await AlQuitar.InvokeAsync(ciudad);
+    }
+
+    private bool YaSeleccionada(CiudadOSM ciudad)
+        => Ciudades.Any(seleccionada =>
+            string.Equals(seleccionada.Nombre, ciudad.Nombre, StringComparison.OrdinalIgnoreCase)
+            || (Math.Abs(seleccionada.Latitud - ciudad.Latitud) < 0.0001
+                && Math.Abs(seleccionada.Longitud - ciudad.Longitud) < 0.0001));
+
+    private static ResultadoBusqueda? Convertir(ResultadoNominatim dato)
+    {
+        if (!double.TryParse(dato.Lat, NumberStyles.Float, CultureInfo.InvariantCulture, out double latitud)
+            || !double.TryParse(dato.Lon, NumberStyles.Float, CultureInfo.InvariantCulture, out double longitud))
+            return null;
+
+        string nombre = string.IsNullOrWhiteSpace(dato.Name)
+            ? dato.DisplayName.Split(',')[0].Trim()
+            : dato.Name!;
+
+        return new ResultadoBusqueda(new CiudadOSM(nombre, latitud, longitud), dato.DisplayName);
+    }
+
+    private sealed record ResultadoBusqueda(CiudadOSM Ciudad, string Descripcion);
+
+    private sealed class ResultadoNominatim
+    {
+        [JsonPropertyName("lat")]
+        public string Lat { get; set; } = string.Empty;
+
+        [JsonPropertyName("lon")]
+        public string Lon { get; set; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonPropertyName("display_name")]
+        public string DisplayName { get; set; } = string.Empty;
+    }
+}

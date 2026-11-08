@@ -18,6 +18,8 @@
     [Parameter] public int VerticeInicio { get; set; } = 0;
     [Parameter] public List<int>? Ruta { get; set; }
     [Parameter] public string? NombreGrafico { get; set; }
+    [Parameter] public bool EsDirigido { get; set; }
+    [Parameter] public IReadOnlyList<string>? Etiquetas { get; set; }
 
     private IJSObjectReference? _json;
     private string imagenSVG = "";
@@ -46,7 +48,13 @@
         {
             if(string.IsNullOrEmpty(NombreGrafico))
                 NombreGrafico = "Grafo ponderado";
-            string dot = ConversorDotFiles.CrearDotFile(Matriz, VerticeInicio, camino: Ruta, nombreGrafico: NombreGrafico);
+            string dot = ConversorDotFiles.CrearDotFile(
+                Matriz,
+                VerticeInicio,
+                nombreGrafico: NombreGrafico,
+                camino: Ruta,
+                esDirigido: EsDirigido,
+                etiquetas: Etiquetas);
             imagenSVG = string.IsNullOrEmpty(dot) ? "" : await _json!.InvokeAsync<string>("renderDot", dot);
         }
         catch (ArgumentException ex)

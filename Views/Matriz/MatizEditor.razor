@@ -1,124 +1,341 @@
 @namespace traveling_salesman_problem_wasm.Views.Matriz
+@using traveling_salesman_problem_wasm.Models
 
 <div class="editor-de-matriz">
     <div class="matriz-controles">
-        <label>
-            Tamaño de la matriz (N x N):
-            <input type="number" min="@Minimo" max="@Maximo" @bind="tamano" @bind:event="oninput" @bind:after="GenerarMatriz" @onchange="@(e => AlCambiarTamano(e))">
-        </label>
-            <button @onclick="AleatorizarPesos">aleatorizar</button>
+        <div class="campo-editor">
+            <label for="tamano-matriz">Tamaño (N x N)</label>
+            <input id="tamano-matriz" type="number" min="@Minimo" max="@Maximo"
+                   value="@tamano" @onchange="AlCambiarTamano" />
+        </div>
+
+        <div class="campo-editor">
+            <label>Tipo de grafo</label>
+            <label class="interruptor">
+                <input type="checkbox" checked="@esDirigidoActual" @onchange="AlCambiarTipoGrafo" />
+                <span>Dirigido (asimétrico)</span>
+            </label>
+        </div>
+
+        <div class="campo-editor">
+            <label for="peso-minimo">Peso mínimo</label>
+            <input id="peso-minimo" type="number" min="1" @bind="pesoMinimo" @bind:event="oninput" />
+        </div>
+
+        <div class="campo-editor">
+            <label for="peso-maximo">Peso máximo</label>
+            <input id="peso-maximo" type="number" min="1" @bind="pesoMaximo" @bind:event="oninput" />
+        </div>
+
+        <div class="grupo-botones">
+            <button type="button" @onclick="AleatorizarPesos">
+                Aleatorizar
+            </button>
+            <button type="button" @onclick="AplicarRangoPesos">
+                Aplicar rango
+            </button>
+        </div>
+
+        <div class="campo-editor">
+            <label for="grado-maximo">Grado máximo</label>
+            <input id="grado-maximo" type="number" min="2" max="@(tamano - 1)"
+                   @bind="gradoMaximo" @bind:event="oninput" />
+        </div>
+
+        <div class="grupo-botones">
+            <button type="button" @onclick="AplicarLimiteGrado">
+                Limitar grado
+            </button>
+        </div>
     </div>
+
+    @if (!string.IsNullOrEmpty(mensaje))
+    {
+        <p>@mensaje</p>
+    }
 
     @if (matrizPesos != null)
     {
-        <table class="matriz-grilla">
-            <tbody>
-                @for (int fila = 0; fila < tamano; fila++)
-                {
-                    int fila_copia = fila;
+        <div class="matriz-scroll">
+            <table class="matriz-grilla">
+                <thead>
                     <tr>
+                        <th class="esquina-matriz"></th>
                         @for (int columna = 0; columna < tamano; columna++)
                         {
-                            int columna_copia = columna;
-                            bool esEditable = fila < columna; 
-                            
-                            <td class="@(esEditable ? "celda-editable" : "celda-bloqueada")">
-                                <input type="number"
-                                       min="1"
-                                       step="1"
-                                       value="@matrizPesos[fila_copia][columna_copia]"
-                                       disabled="@(!esEditable)"
-                                       @onchange="@(e => AlCambiarCelda(fila_copia, columna_copia, e))" />
-                            </td>
+                            <th>@NombreVertice(columna)</th>
                         }
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @for (int fila = 0; fila < tamano; fila++)
+                    {
+                        int fila_copia = fila;
+
+                        <tr>
+                            <th>@NombreVertice(fila)</th>
+                            @for (int columna = 0; columna < tamano; columna++)
+                            {
+                                int columna_copia = columna;
+                                bool esEditable = esDirigidoActual ? fila != columna : fila < columna;
+                                int valor = matrizPesos[fila_copia][columna_copia];
+
+                                <td class="@(esEditable ? "celda-editable" : "celda-bloqueada")">
+                                    @if (esEditable)
+                                    {
+                                        <input type="number"
+                                               min="0"
+                                               step="1"
+                                               value="@(valor > 0 ? valor.ToString() : "")"
+                                               @onchange="@(e => AlCambiarCelda(fila_copia, columna_copia, e))" />
+                                    }
+                                    else
+                                    {
+                                        <span>@(valor > 0 ? valor.ToString() : "—")</span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <p class="leyenda-matriz">
+            Las celdas vacías representan aristas que no existen. El valor 0 también elimina la arista.
+        </p>
     }
 </div>
 
 @code {
-    [Parameter]
-    public int Minimo { get; set; }
-    [Parameter]
-    public int Maximo { get; set; }
+    [Parameter] public int Minimo { get; set; } = 5;
+    [Parameter] public int Maximo { get; set; } = 15;
+    [Parameter] public bool EsDirigido { get; set; }
+    [Parameter] public EventCallback<bool> EsDirigidoChanged { get; set; }
     [Parameter] public EventCallback<int[][]> MatrizCambiada { get; set; }
-    private int tamano; 
 
+    private int tamano;
+    private int pesoMinimo = 1;
+    private int pesoMaximo = 1500;
+    private int gradoMaximo = 3;
+    private bool esDirigidoActual;
     private int[][]? matrizPesos;
+    private string? mensaje;
+
     protected override async Task OnInitializedAsync()
     {
         tamano = Minimo;
+        esDirigidoActual = EsDirigido;
         GenerarMatriz();
         await MatrizCambiada.InvokeAsync(matrizPesos);
     }
 
+    protected override void OnParametersSet()
+    {
+        if (esDirigidoActual == EsDirigido)
+            return;
+
+        esDirigidoActual = EsDirigido;
+
+        if (matrizPesos != null && !esDirigidoActual)
+            SimetrizarMatriz();
+    }
+
     private void GenerarMatriz()
     {
-        if (tamano < Minimo) tamano = Minimo;
-        if (tamano > Maximo) tamano = Maximo;
+        tamano = Math.Clamp(tamano, Minimo, Maximo);
+        NormalizarRango();
 
-        int[][]? nuevaMatriz = new int[tamano][];
+        int[][] nuevaMatriz = new int[tamano][];
+        int pesoInicial = Math.Max(1, pesoMinimo);
+
         for (int i = 0; i < tamano; i++)
         {
             nuevaMatriz[i] = new int[tamano];
+
             for (int j = 0; j < tamano; j++)
-                nuevaMatriz[i][j] = 1;
-            nuevaMatriz[i][i] = 0;
+                nuevaMatriz[i][j] = i == j ? 0 : pesoInicial;
         }
 
         if (matrizPesos != null)
         {
             int tamanoValido = Math.Min(matrizPesos.Length, tamano);
+
             for (int i = 0; i < tamanoValido; i++)
             {
                 for (int j = 0; j < tamanoValido; j++)
                 {
                     nuevaMatriz[i][j] = matrizPesos[i][j];
 
-                    if(i == j)
+                    if (i == j)
                         nuevaMatriz[i][j] = 0;
                 }
             }
         }
 
         matrizPesos = nuevaMatriz;
+
+        if (!esDirigidoActual)
+            SimetrizarMatriz();
+
         StateHasChanged();
     }
-    private async Task AleatorizarPesos()
+
+    private void SimetrizarMatriz()
     {
-        if(matrizPesos == null)
+        if (matrizPesos == null)
             return;
-        
-        Random generadorNuerosAleatorios = new Random();
-        for(int i = 0; i < matrizPesos.Length; i++)
-            for(int j = 0; j < matrizPesos.Length; j++)
-                if(i < j)
-                {
-                    int costo  = generadorNuerosAleatorios.Next(100, 1501);
-                    matrizPesos[i][j] = costo;
-                    matrizPesos[j][i] = costo;
-                }
-        await MatrizCambiada.InvokeAsync(matrizPesos);
+
+        for (int i = 0; i < matrizPesos.Length; i++)
+            for (int j = i + 1; j < matrizPesos.Length; j++)
+                matrizPesos[j][i] = matrizPesos[i][j];
     }
+
     private async Task AlCambiarTamano(ChangeEventArgs e)
     {
-        if(matrizPesos == null)
-            return;
+        if (int.TryParse(e.Value?.ToString(), out int nuevoTamano))
+            tamano = nuevoTamano;
+
+        tamano = Math.Clamp(tamano, Minimo, Maximo);
+        GenerarMatriz();
 
         await MatrizCambiada.InvokeAsync(matrizPesos);
     }
-    private async Task AlCambiarCelda(int row, int col, ChangeEventArgs e)
+
+    private async Task AlCambiarTipoGrafo(ChangeEventArgs e)
     {
-        if (matrizPesos == null) 
+        if (matrizPesos == null)
             return;
 
-        if (int.TryParse(e.Value?.ToString(), out int value))
-        {
-            matrizPesos[row][col] = value;
-            matrizPesos[col][row] = value;
-            await MatrizCambiada.InvokeAsync(matrizPesos);
-        }
+        esDirigidoActual = e.Value is bool dirigido && dirigido;
+
+        if (!esDirigidoActual)
+            SimetrizarMatriz();
+
+        await EsDirigidoChanged.InvokeAsync(esDirigidoActual);
+        await MatrizCambiada.InvokeAsync(matrizPesos);
     }
+
+    private async Task AleatorizarPesos()
+    {
+        if (matrizPesos == null)
+            return;
+
+        NormalizarRango();
+
+        for (int i = 0; i < matrizPesos.Length; i++)
+        {
+            for (int j = 0; j < matrizPesos.Length; j++)
+            {
+                if (i == j)
+                    continue;
+
+                if (!esDirigidoActual && j < i)
+                    continue;
+
+                int costo = Random.Shared.Next(pesoMinimo, pesoMaximo + 1);
+                matrizPesos[i][j] = costo;
+
+                if (!esDirigidoActual)
+                    matrizPesos[j][i] = costo;
+            }
+        }
+
+        await MatrizCambiada.InvokeAsync(matrizPesos);
+    }
+
+    private async Task AplicarRangoPesos()
+    {
+        if (matrizPesos == null)
+            return;
+
+        NormalizarRango();
+
+        for (int i = 0; i < matrizPesos.Length; i++)
+        {
+            for (int j = 0; j < matrizPesos.Length; j++)
+            {
+                if (i == j)
+                    continue;
+
+                if (!esDirigidoActual && j < i)
+                    continue;
+
+                if (matrizPesos[i][j] <= 0)
+                    continue;
+
+                matrizPesos[i][j] = Math.Clamp(matrizPesos[i][j], pesoMinimo, pesoMaximo);
+
+                if (!esDirigidoActual)
+                    matrizPesos[j][i] = matrizPesos[i][j];
+            }
+        }
+
+        await MatrizCambiada.InvokeAsync(matrizPesos);
+    }
+
+    private async Task AplicarLimiteGrado()
+    {
+        if (matrizPesos == null)
+            return;
+
+        mensaje = null;
+
+        int limite = Math.Clamp(gradoMaximo, 2, Math.Max(2, tamano - 1));
+        gradoMaximo = limite;
+
+        var grafo = new GrafoPonderado(tamano, esDirigidoActual);
+
+        for (int i = 0; i < tamano; i++)
+        {
+            for (int j = 0; j < tamano; j++)
+            {
+                if (i == j)
+                    continue;
+
+                if (!esDirigidoActual && j < i)
+                    continue;
+
+                if (matrizPesos[i][j] > 0)
+                    grafo.AsignarPeso(i, j, matrizPesos[i][j]);
+            }
+        }
+
+        if (!grafo.LimitarGrado(limite))
+        {
+            mensaje = "No se pudo limitar el grado: el grafo actual no contiene un ciclo hamiltoniano que sirva de base. Genera un grafo completo primero.";
+            return;
+        }
+
+        matrizPesos = grafo.ObtenerMatriz();
+
+        await MatrizCambiada.InvokeAsync(matrizPesos);
+    }
+
+    private async Task AlCambiarCelda(int fila, int columna, ChangeEventArgs e)
+    {
+        if (matrizPesos == null)
+            return;
+
+        int valor = 0;
+
+        if (int.TryParse(e.Value?.ToString(), out int valorIngresado))
+            valor = Math.Max(0, valorIngresado);
+
+        matrizPesos[fila][columna] = valor;
+
+        if (!esDirigidoActual)
+            matrizPesos[columna][fila] = valor;
+
+        await MatrizCambiada.InvokeAsync(matrizPesos);
+    }
+
+    private void NormalizarRango()
+    {
+        pesoMinimo = Math.Max(1, pesoMinimo);
+        pesoMaximo = Math.Max(pesoMinimo, pesoMaximo);
+    }
+
+    private static string NombreVertice(int indice)
+        => indice < 26 ? ((char)('A' + indice)).ToString() : $"V{indice}";
 }

@@ -1,49 +1,349 @@
 @page "/tsp"
 @using System.Diagnostics
 @using traveling_salesman_problem_wasm.Algorithms
+@using traveling_salesman_problem_wasm.Algorithms.Utilidades
 @using traveling_salesman_problem_wasm.Models
+@using traveling_salesman_problem_wasm.Services
+@using traveling_salesman_problem_wasm.Views.Ciudades
 @using traveling_salesman_problem_wasm.Views.Matriz
 @using traveling_salesman_problem_wasm.Views.Graphviz
+@inject IJSRuntime JS
+@inject HttpClient Http
+@implements IAsyncDisposable
 
-<PageTitle>travel salesman problem</PageTitle>
-<h1>Calcular por fuerza bruta</h1>
-<h2>@RendererInfo.Name, @RendererInfo.IsInteractive</h2>
-<div class="matriz-pesos">
-    <h3>Ingresa a continuación una matriz de pesos completa y simetrica o generala aleatoriamente</h3>
-    <MatizEditor Minimo="5" Maximo="15" MatrizCambiada="ManejadorCambiosMatriz" />
-</div>
-<div class="entrada-vertice">
-    <label for="">Vértice de origen:  
-        <input type="number" min="0" max="@(matrizActual != null ? matrizActual.Length - 1 : 0)" @bind="verticeInicio" @bind:event="oninput">
-    </label>
-    
-</div>
-<button class="btn btn-primary" @onclick="Procesar" disabled="@estaProcesando">
-    Procesar
-</button>
-<GraphvizRender Matriz="matrizActual" Ruta="ultimaSolucion" NombreGrafico="Grafo_Ponderado_Completo"/>
-<p role="status">@ciclosStr</p>
-<p role="status">@rutaStr</p>
-<p role="status">@costoStr</p>
-<p role="status">@tiempoStr</p>
+<PageTitle>Problema del agente viajero</PageTitle>
+
+<h1>Problema del agente viajero (TSP)</h1>
+
+<section class="panel-configuracion">
+    <h3>Configuración del grafo</h3>
+
+    <div role="group" aria-label="Origen de los datos del grafo">
+        <button type="button"
+                disabled="@(!modoCiudades)"
+                @onclick="() => CambiarModo(false)">
+            Matriz manual
+        </button>
+        <button type="button"
+                disabled="@modoCiudades"
+                @onclick="() => CambiarModo(true)">
+            Ciudades (distancias automáticas)
+        </button>
+    </div>
+
+    @if (modoCiudades)
+    {
+        <p class="texto-ayuda">
+            Busca ciudades por nombre y agrégalas: la matriz se genera automáticamente con la distancia por
+            carretera en kilómetros (OSRM sobre OpenStreetMap) y la ruta se dibuja sobre las vías reales.
+            Si el servicio no responde se usa la distancia en línea recta (Haversine). Necesitas al menos 3 ciudades.
+        </p>
+
+        <BuscadorCiudades Ciudades="ciudadesTSP"
+                          AlAgregar="AgregarCiudadTSP"
+                          AlQuitar="QuitarCiudadTSP"
+                          Maximo="MaximoCiudades" />
+
+        @if (ciudadesTSP.Count is > 0 and < 3)
+        {
+            <p>Agrega al menos 3 ciudades para poder resolver el TSP.</p>
+        }
+
+        <div id="mapa-tsp-ciudades"
+             class="mapa-tsp"
+             role="application"
+             aria-label="Mapa de OpenStreetMap con las ciudades seleccionadas"></div>
+
+        @if (!string.IsNullOrEmpty(mensajeMapa))
+        {
+            <p>@mensajeMapa</p>
+        }
+    }
+    else
+    {
+        <p class="texto-ayuda">
+            Elige el tamaño, el tipo de grafo, el rango de pesos y el grado máximo de los vértices.
+            El botón <strong>Limitar grado</strong> recorta automáticamente las aristas necesarias conservando
+            un ciclo hamiltoniano.
+        </p>
+
+        <MatizEditor Minimo="5"
+                     Maximo="15"
+                     EsDirigido="esDirigido"
+                     EsDirigidoChanged="AlCambiarTipoGrafo"
+                     MatrizCambiada="ManejadorCambiosMatriz" />
+    }
+
+    @if (cargandoDistancias)
+    {
+        <p class="texto-ayuda" aria-live="polite">Calculando distancias por carretera...</p>
+    }
+
+    @if (!string.IsNullOrEmpty(resumenGrafo))
+    {
+        <p class="resumen-grafo">@resumenGrafo</p>
+    }
+
+    @if (!string.IsNullOrEmpty(avisoDistancias))
+    {
+        <p>@avisoDistancias</p>
+    }
+</section>
+
+<section class="panel-configuracion">
+    <h3>Resolución</h3>
+
+    <div class="matriz-controles">
+        <div class="campo-editor">
+            <label for="vertice-origen">Vértice de origen</label>
+            <select id="vertice-origen" @bind="verticeInicio">
+                @for (int i = 0; i < (matrizActual?.Length ?? 0); i++)
+                {
+                    <option value="@i">@NombreVertice(i)</option>
+                }
+            </select>
+        </div>
+
+        <div class="grupo-botones">
+            <button type="button" @onclick="Procesar" disabled="@(estaProcesando || cargandoDistancias)">
+                @(estaProcesando ? "Procesando..." : "Procesar")
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(advertenciaFuerzaBruta))
+    {
+        <p>@advertenciaFuerzaBruta</p>
+    }
+</section>
+
+@if (!string.IsNullOrEmpty(mensajeError))
+{
+    <p>@mensajeError</p>
+}
+
+@if (!string.IsNullOrEmpty(rutaStr))
+{
+    <section class="resultados-tsp" aria-live="polite">
+        @if (!string.IsNullOrEmpty(ciclosStr))
+        {
+            <div class="tarjeta-resultado">
+                <span>Ciclos posibles</span>
+                <strong>@ciclosStr</strong>
+            </div>
+        }
+
+        <div class="tarjeta-resultado tarjeta-ancha">
+            <span>Ruta</span>
+            <strong>@rutaStr</strong>
+        </div>
+
+        <div class="tarjeta-resultado">
+            <span>Costo total</span>
+            <strong>@costoStr</strong>
+        </div>
+
+        <div class="tarjeta-resultado">
+            <span>Tiempo</span>
+            <strong>@tiempoStr</strong>
+        </div>
+    </section>
+}
+
+<GraphvizRender Matriz="matrizActual"
+                VerticeInicio="verticeInicio"
+                Ruta="ultimaSolucion"
+                EsDirigido="esDirigido"
+                Etiquetas="etiquetasGrafo"
+                NombreGrafico="Grafo_TSP" />
+
 @code {
-    private GrafoPonderado? grafoPonderado = null;
-    private int[][]? matrizActual = null;
-    private bool estaProcesando = false;
-    private string? ciclosStr = "";
-    private string? rutaStr = "";
-    private string? costoStr = "";
-    private string? tiempoStr = "";
-    private List<int>? ultimaSolucion;
-    private int verticeInicio;
+    private const int LimiteFuerzaBruta = 11;
+    private const int MinimoCiudades = 3;
+    private const int MaximoCiudades = 20;
 
-    private void ManejadorCambiosMatriz(int[][]? matriz) 
+    private readonly List<CiudadOSM> ciudadesTSP = new();
+
+    private int[][]? matrizActual;
+    private bool esDirigido;
+    private bool estaProcesando;
+    private bool cargandoDistancias;
+    private bool distanciasPorCarretera;
+    private int versionMatriz;
+    private double[][]? trazadoRuta;
+    private string? avisoDistancias;
+    private bool modoCiudades;
+    private bool modoCiudadesAnterior;
+    private bool mapaPendiente;
+    private int verticeInicio;
+    private List<int>? ultimaSolucion;
+    private IJSObjectReference? moduloMapa;
+
+    private string? ciclosStr;
+    private string? rutaStr;
+    private string? costoStr;
+    private string? tiempoStr;
+    private string? mensajeError;
+    private string? mensajeMapa;
+    private string? resumenGrafo;
+
+    private IReadOnlyList<string>? etiquetasGrafo
+        => modoCiudades && ciudadesTSP.Count > 0
+            ? ciudadesTSP.Select(ciudad => ciudad.Nombre).ToList()
+            : null;
+
+    private string? advertenciaFuerzaBruta
+        => matrizActual is not null && matrizActual.Length > LimiteFuerzaBruta
+            ? $"La fuerza bruta es inviable con {matrizActual.Length} vértices. Reduce el tamaño a {LimiteFuerzaBruta} o menos."
+            : null;
+
+    private void ManejadorCambiosMatriz(int[][]? matriz)
     {
         matrizActual = matriz;
-        if(matrizActual != null)
-            verticeInicio = Math.Min(verticeInicio, matrizActual.Length -1);
 
-        LimpiarVariables();
+        if (matrizActual is not null)
+            verticeInicio = Math.Clamp(verticeInicio, 0, matrizActual.Length - 1);
+
+        LimpiarResultados();
+        ActualizarResumenGrafo();
+    }
+
+    private void AlCambiarTipoGrafo(bool dirigido)
+    {
+        esDirigido = dirigido;
+        LimpiarResultados();
+        ActualizarResumenGrafo();
+    }
+
+    private async Task CambiarModo(bool ciudades)
+    {
+        if (modoCiudades == ciudades)
+            return;
+
+        modoCiudades = ciudades;
+        LimpiarResultados();
+        mensajeMapa = null;
+
+        if (ciudades)
+        {
+            esDirigido = false;
+            await ActualizarMatrizCiudades();
+        }
+        else
+        {
+            versionMatriz++;
+            cargandoDistancias = false;
+            avisoDistancias = null;
+            matrizActual = null;
+            resumenGrafo = null;
+            verticeInicio = 0;
+            mapaPendiente = false;
+        }
+    }
+
+    private async Task AgregarCiudadTSP(CiudadOSM ciudad)
+    {
+        if (ciudadesTSP.Count >= MaximoCiudades || ciudadesTSP.Any(c => EsMismaCiudad(c, ciudad)))
+            return;
+
+        ciudadesTSP.Add(ciudad);
+        await ActualizarMatrizCiudades();
+    }
+
+    private async Task QuitarCiudadTSP(CiudadOSM ciudad)
+    {
+        int indice = ciudadesTSP.FindIndex(seleccionada => EsMismaCiudad(seleccionada, ciudad));
+
+        if (indice < 0)
+            return;
+
+        // Se recuerda la ciudad de origen para no perderla al cambiar los índices.
+        CiudadOSM? ciudadOrigen = verticeInicio < ciudadesTSP.Count ? ciudadesTSP[verticeInicio] : null;
+
+        ciudadesTSP.RemoveAt(indice);
+
+        int nuevoIndice = ciudadOrigen is null ? -1 : ciudadesTSP.IndexOf(ciudadOrigen);
+        verticeInicio = nuevoIndice >= 0 ? nuevoIndice : 0;
+
+        await ActualizarMatrizCiudades();
+    }
+
+    private static bool EsMismaCiudad(CiudadOSM a, CiudadOSM b)
+        => a.Nombre == b.Nombre
+            && Math.Abs(a.Latitud - b.Latitud) < 0.0001
+            && Math.Abs(a.Longitud - b.Longitud) < 0.0001;
+
+    private async Task ActualizarMatrizCiudades()
+    {
+        LimpiarResultados();
+
+        esDirigido = false;
+        avisoDistancias = null;
+        verticeInicio = Math.Clamp(verticeInicio, 0, Math.Max(0, ciudadesTSP.Count - 1));
+
+        // Si el usuario cambia las ciudades mientras se consulta el servicio,
+        // solo vale la respuesta de la consulta más reciente.
+        int version = ++versionMatriz;
+
+        if (ciudadesTSP.Count < MinimoCiudades)
+        {
+            matrizActual = null;
+            cargandoDistancias = false;
+            ActualizarResumenGrafo();
+            mapaPendiente = true;
+            return;
+        }
+
+        cargandoDistancias = true;
+        StateHasChanged();
+
+        int[][] matriz;
+        bool porCarretera;
+        string? aviso = null;
+
+        try
+        {
+            matriz = await new ServicioRutasOsrm(Http).ObtenerMatrizDistanciasKmAsync(ciudadesTSP);
+            porCarretera = true;
+        }
+        catch (Exception ex)
+        {
+            matriz = ConstruirMatrizEnLineaRecta();
+            porCarretera = false;
+            aviso = $"No se pudieron obtener las distancias por carretera ({ex.Message}). Se usan distancias en línea recta.";
+        }
+
+        if (version != versionMatriz)
+            return;
+
+        matrizActual = matriz;
+        distanciasPorCarretera = porCarretera;
+        avisoDistancias = aviso;
+        cargandoDistancias = false;
+        ActualizarResumenGrafo();
+        mapaPendiente = true;
+    }
+
+    private int[][] ConstruirMatrizEnLineaRecta()
+    {
+        int cantidad = ciudadesTSP.Count;
+        int[][] matriz = Enumerable.Range(0, cantidad).Select(_ => new int[cantidad]).ToArray();
+
+        for (int i = 0; i < cantidad; i++)
+        {
+            for (int j = i + 1; j < cantidad; j++)
+            {
+                double distancia = CalculosGeograficos.DistanciaKm(
+                    ciudadesTSP[i].Latitud, ciudadesTSP[i].Longitud,
+                    ciudadesTSP[j].Latitud, ciudadesTSP[j].Longitud);
+
+                int distanciaKm = Math.Max(1, (int)Math.Round(distancia));
+                matriz[i][j] = distanciaKm;
+                matriz[j][i] = distanciaKm;
+            }
+        }
+
+        return matriz;
     }
 
     private async Task Procesar()
@@ -52,53 +352,232 @@
             return;
 
         estaProcesando = true;
-        LimpiarVariables();
-        rutaStr = "Procesando. . .";
+        LimpiarResultados();
+        mapaPendiente = modoCiudades;
         StateHasChanged();
 
-        if (matrizActual == null)
+        try
         {
-            rutaStr = "La matriz de adyacencia no existe!";
-            estaProcesando = false;
-            return;
+            if (matrizActual is null)
+            {
+                mensajeError = modoCiudades
+                    ? $"Agrega al menos {MinimoCiudades} ciudades para resolver el TSP."
+                    : "La matriz de adyacencia no existe.";
+                return;
+            }
+
+            GrafoPonderado grafoPonderado = ConstruirGrafo();
+
+            if (!grafoPonderado.EsGrafoValido())
+            {
+                mensajeError = "El grafo no es válido para TSP. Comprueba que sea conexo y que cada vértice tenga el grado mínimo necesario.";
+                return;
+            }
+
+            var problema = new ProblemaTSP(grafoPonderado, verticeInicio);
+
+            if (problema.NumeroVertices > LimiteFuerzaBruta)
+            {
+                mensajeError = advertenciaFuerzaBruta;
+                return;
+            }
+
+            var solucionador = new FuerzaBrutaTSP(problema);
+
+            var timer = Stopwatch.StartNew();
+            SolucionTSP? solucion = await Task.Run(() => solucionador.Resolver());
+            timer.Stop();
+
+            if (solucion is null)
+            {
+                mensajeError = "El algoritmo no encontró un ciclo hamiltoniano. Prueba con más aristas.";
+                return;
+            }
+
+            ultimaSolucion = solucion.Ruta;
+
+            if (modoCiudades && distanciasPorCarretera)
+                trazadoRuta = await ObtenerTrazado(solucion.Ruta);
+
+            ciclosStr = solucionador.CiclosPosibles().ToString("N0");
+
+            rutaStr = string.Join(" → ", solucion.Ruta.Select(NombreVertice));
+            costoStr = solucion.CostoTotal.ToString("N0") + (modoCiudades ? " km" : "");
+            tiempoStr = timer.Elapsed.ToString(@"m\:ss\:fff");
+            mapaPendiente = modoCiudades;
         }
-
-        grafoPonderado = new GrafoPonderado(matrizActual.Length);
-        for (int i = 0; i < matrizActual.Length; i++)
-            for (int j = 0; j < matrizActual.Length; j++)
-                if (i < j)
-                    grafoPonderado.AsingarPeso(i, j, matrizActual[i][j]);
-
-        if (!grafoPonderado.EsGrafoValido())
+        catch (Exception ex)
         {
-            rutaStr = "grafo invalido!";
-            estaProcesando = false;
-            return;
+            mensajeError = ex.Message;
         }
-
-        ProblemaTSP problema = new ProblemaTSP(grafoPonderado, verticeInicio);
-        FuerzaBrutaTSP fuerzaBruta = new FuerzaBrutaTSP(problema);
-
-        Stopwatch? timer = Stopwatch.StartNew();
-        SolucionTSP solucion = await Task.Run(() => fuerzaBruta.Resolver());
-        timer.Stop();
-
-        ultimaSolucion = solucion.Ruta;
-        ciclosStr = $"Ciclos hamiltonianos posibles: {fuerzaBruta.CiclosPosibles()}";
-        List<char> resultado = solucion.Ruta.Select(i => (char)('A' + i)).ToList();
-        rutaStr = $"Ruta: {string.Join(" -> ", resultado)}";
-        costoStr = $"Costo: {solucion.CostoTotal}";
-        tiempoStr = $"Tiempo: {timer.Elapsed.ToString(@"m\:ss\:fff")}";
-
-        estaProcesando = false; 
+        finally
+        {
+            estaProcesando = false;
+            StateHasChanged();
+        }
     }
 
-    private void LimpiarVariables()
+    private async Task<double[][]?> ObtenerTrazado(List<int> ruta)
     {
-            ciclosStr = "";
-            rutaStr = "";
-            costoStr = "";
-            tiempoStr = "";
-            ultimaSolucion = null;
+        try
+        {
+            return await new ServicioRutasOsrm(Http).ObtenerTrazadoAsync(ciudadesTSP, ruta);
+        }
+        catch (Exception ex)
+        {
+            avisoDistancias = $"No se pudo obtener el trazado por carretera ({ex.Message}). Se dibujan líneas rectas entre ciudades.";
+            return null;
+        }
+    }
+
+    private GrafoPonderado ConstruirGrafo()
+    {
+        int n = matrizActual!.Length;
+        var grafo = new GrafoPonderado(n, esDirigido);
+
+        for (int i = 0; i < n; i++)
+        {
+            // En un grafo no dirigido AsignarPeso ya completa la arista simétrica.
+            int primeraColumna = esDirigido ? 0 : i + 1;
+
+            for (int j = primeraColumna; j < n; j++)
+                if (i != j && matrizActual[i][j] > 0)
+                    grafo.AsignarPeso(i, j, matrizActual[i][j]);
+        }
+
+        return grafo;
+    }
+
+    private void ActualizarResumenGrafo()
+    {
+        if (matrizActual is null)
+        {
+            resumenGrafo = null;
+            return;
+        }
+
+        int n = matrizActual.Length;
+        int aristas = 0;
+        int gradoMaximo = 0;
+
+        for (int i = 0; i < n; i++)
+        {
+            int salida = 0;
+            int entrada = 0;
+
+            for (int j = 0; j < n; j++)
+            {
+                if (i == j)
+                    continue;
+
+                if (matrizActual[i][j] > 0)
+                    salida++;
+
+                if (matrizActual[j][i] > 0)
+                    entrada++;
+            }
+
+            aristas += salida;
+            gradoMaximo = Math.Max(gradoMaximo, Math.Max(salida, entrada));
+        }
+
+        // En un grafo no dirigido cada arista aparece dos veces en la matriz.
+        if (!esDirigido)
+            aristas /= 2;
+
+        string tipo = esDirigido ? "dirigido (asimétrico)" : "no dirigido";
+        string detalle = !modoCiudades
+            ? string.Empty
+            : distanciasPorCarretera ? " · Distancias por carretera (km)" : " · Distancias en línea recta (km)";
+        resumenGrafo = $"Vértices: {n} · Aristas: {aristas} · Grado máximo: {gradoMaximo} · Tipo: {tipo}{detalle}";
+    }
+
+    private string NombreVertice(int indice)
+    {
+        if (modoCiudades && indice >= 0 && indice < ciudadesTSP.Count)
+            return ciudadesTSP[indice].Nombre;
+
+        return indice < 26 ? ((char)('A' + indice)).ToString() : $"V{indice}";
+    }
+
+    private void LimpiarResultados()
+    {
+        ciclosStr = null;
+        rutaStr = null;
+        costoStr = null;
+        tiempoStr = null;
+        mensajeError = null;
+        ultimaSolucion = null;
+        trazadoRuta = null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool primerRender)
+    {
+        if (modoCiudadesAnterior && !modoCiudades)
+            await DestruirMapaCiudades();
+
+        modoCiudadesAnterior = modoCiudades;
+
+        if (modoCiudades && (primerRender || mapaPendiente))
+        {
+            mapaPendiente = false;
+            await DibujarMapaCiudades();
+        }
+    }
+
+    private async Task DibujarMapaCiudades()
+    {
+        try
+        {
+            moduloMapa ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/mapaOSM.js");
+
+            var datos = ciudadesTSP
+                .Select(ciudad => new
+                {
+                    nombre = ciudad.Nombre,
+                    lat = ciudad.Latitud,
+                    lon = ciudad.Longitud
+                })
+                .ToArray();
+
+            int[] ruta = ultimaSolucion?.ToArray() ?? Array.Empty<int>();
+
+            await moduloMapa.InvokeVoidAsync("mostrarMapa", "mapa-tsp-ciudades", datos, ruta, trazadoRuta);
+            mensajeMapa = null;
+        }
+        catch (Exception ex)
+        {
+            mensajeMapa = $"No se pudo dibujar el mapa: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task DestruirMapaCiudades()
+    {
+        if (moduloMapa is null)
+            return;
+
+        try
+        {
+            await moduloMapa.InvokeVoidAsync("destruirMapa", "mapa-tsp-ciudades");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (moduloMapa is null)
+            return;
+
+        try
+        {
+            await moduloMapa.InvokeVoidAsync("destruirMapa", "mapa-tsp-ciudades");
+            await moduloMapa.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
     }
 }
