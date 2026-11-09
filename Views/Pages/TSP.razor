@@ -68,7 +68,7 @@
         </p>
 
         <MatizEditor Minimo="5"
-                     Maximo="15"
+                     Maximo="16"
                      EsDirigido="esDirigido"
                      EsDirigidoChanged="AlCambiarTipoGrafo"
                      MatrizCambiada="ManejadorCambiosMatriz" />
@@ -91,9 +91,17 @@
 </section>
 
 <section class="panel-configuracion">
-    <h3>Resolución</h3>
+    <h3>Resolver</h3>
 
     <div class="matriz-controles">
+        <div class="campo-editor">
+            <label for="algoritmo-resolucion">Algoritmo</label>
+            <select id="algoritmo-resolucion" @bind="algoritmo">
+                <option value="@AlgoritmoResolucion.FuerzaBruta">Fuerza bruta (Solucion exacta)</option>
+                <option value="@AlgoritmoResolucion.DosOpt">Heuristica 2-opt (Aproximado bueno y rápido)</option>
+            </select>
+        </div>
+
         <div class="campo-editor">
             <label for="vertice-origen">Vértice de origen</label>
             <select id="vertice-origen" @bind="verticeInicio">
@@ -110,6 +118,14 @@
             </button>
         </div>
     </div>
+
+    @if (algoritmo == AlgoritmoResolucion.DosOpt)
+    {
+        <p class="texto-ayuda">
+            2-opt parte de una ruta inicial (vecino más cercano) y la mejora invirtiendo tramos.
+            Es una heurística: consigue una buena ruta, no necesariamente la óptima.
+        </p>
+    }
 
     @if (!string.IsNullOrEmpty(advertenciaFuerzaBruta))
     {
@@ -132,6 +148,11 @@
                 <strong>@ciclosStr</strong>
             </div>
         }
+
+        <div class="tarjeta-resultado">
+            <span>Algoritmo</span>
+            <strong>@algoritmoStr</strong>
+        </div>
 
         <div class="tarjeta-resultado tarjeta-ancha">
             <span>Ruta</span>
@@ -158,9 +179,18 @@
                 NombreGrafico="Grafo_TSP" />
 
 @code {
-    private const int LimiteFuerzaBruta = 11;
+    private enum AlgoritmoResolucion
+    {
+        FuerzaBruta,
+        DosOpt
+    }
+
+    private const int LimiteFuerzaBruta = 16;
     private const int MinimoCiudades = 3;
     private const int MaximoCiudades = 20;
+
+    private AlgoritmoResolucion algoritmo = AlgoritmoResolucion.FuerzaBruta;
+    private string algoritmoStr = string.Empty;
 
     private readonly List<CiudadOSM> ciudadesTSP = new();
 
@@ -193,8 +223,10 @@
             : null;
 
     private string? advertenciaFuerzaBruta
-        => matrizActual is not null && matrizActual.Length > LimiteFuerzaBruta
-            ? $"La fuerza bruta es inviable con {matrizActual.Length} vértices. Reduce el tamaño a {LimiteFuerzaBruta} o menos."
+        => algoritmo == AlgoritmoResolucion.FuerzaBruta
+            && matrizActual is not null
+            && matrizActual.Length > LimiteFuerzaBruta
+            ? $"La fuerza bruta es inviable con {matrizActual.Length} vértices. Usa 2-opt o reduce el tamaño a {LimiteFuerzaBruta} o menos."
             : null;
 
     private void ManejadorCambiosMatriz(int[][]? matriz)
@@ -257,7 +289,6 @@
         if (indice < 0)
             return;
 
-        // Se recuerda la ciudad de origen para no perderla al cambiar los índices.
         CiudadOSM? ciudadOrigen = verticeInicio < ciudadesTSP.Count ? ciudadesTSP[verticeInicio] : null;
 
         ciudadesTSP.RemoveAt(indice);
@@ -280,9 +311,6 @@
         esDirigido = false;
         avisoDistancias = null;
         verticeInicio = Math.Clamp(verticeInicio, 0, Math.Max(0, ciudadesTSP.Count - 1));
-
-        // Si el usuario cambia las ciudades mientras se consulta el servicio,
-        // solo vale la respuesta de la consulta más reciente.
         int version = ++versionMatriz;
 
         if (ciudadesTSP.Count < MinimoCiudades)
@@ -376,13 +404,22 @@
 
             var problema = new ProblemaTSP(grafoPonderado, verticeInicio);
 
-            if (problema.NumeroVertices > LimiteFuerzaBruta)
-            {
-                mensajeError = advertenciaFuerzaBruta;
-                return;
-            }
+            IResolver solucionador;
 
-            var solucionador = new FuerzaBrutaTSP(problema);
+            if (algoritmo == AlgoritmoResolucion.FuerzaBruta)
+            {
+                if (problema.NumeroVertices > LimiteFuerzaBruta)
+                {
+                    mensajeError = advertenciaFuerzaBruta;
+                    return;
+                }
+
+                solucionador = new FuerzaBrutaTSP(problema);
+            }
+            else
+            {
+                solucionador = new DosOptTSP(problema);
+            }
 
             var timer = Stopwatch.StartNew();
             SolucionTSP? solucion = await Task.Run(() => solucionador.Resolver());
@@ -390,7 +427,9 @@
 
             if (solucion is null)
             {
-                mensajeError = "El algoritmo no encontró un ciclo hamiltoniano. Prueba con más aristas.";
+                mensajeError = algoritmo == AlgoritmoResolucion.FuerzaBruta
+                    ? "El algoritmo no encontró un ciclo hamiltoniano. Prueba con más aristas."
+                    : "2-opt no encontró una ruta inicial válida. Prueba con más aristas o usa fuerza bruta.";
                 return;
             }
 
@@ -399,7 +438,13 @@
             if (modoCiudades && distanciasPorCarretera)
                 trazadoRuta = await ObtenerTrazado(solucion.Ruta);
 
-            ciclosStr = solucionador.CiclosPosibles().ToString("N0");
+            ciclosStr = solucionador is FuerzaBrutaTSP fuerzaBruta
+                ? fuerzaBruta.CiclosPosibles().ToString("N0")
+                : null;
+
+            algoritmoStr = algoritmo == AlgoritmoResolucion.FuerzaBruta
+                ? "Fuerza bruta"
+                : "2-opt";
 
             rutaStr = string.Join(" → ", solucion.Ruta.Select(NombreVertice));
             costoStr = solucion.CostoTotal.ToString("N0") + (modoCiudades ? " km" : "");
@@ -437,7 +482,6 @@
 
         for (int i = 0; i < n; i++)
         {
-            // En un grafo no dirigido AsignarPeso ya completa la arista simétrica.
             int primeraColumna = esDirigido ? 0 : i + 1;
 
             for (int j = primeraColumna; j < n; j++)
@@ -481,7 +525,6 @@
             gradoMaximo = Math.Max(gradoMaximo, Math.Max(salida, entrada));
         }
 
-        // En un grafo no dirigido cada arista aparece dos veces en la matriz.
         if (!esDirigido)
             aristas /= 2;
 
@@ -509,6 +552,7 @@
         mensajeError = null;
         ultimaSolucion = null;
         trazadoRuta = null;
+        algoritmoStr = string.Empty;
     }
 
     protected override async Task OnAfterRenderAsync(bool primerRender)

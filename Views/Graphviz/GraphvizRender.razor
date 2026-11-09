@@ -9,7 +9,20 @@
     }
     else
     {
-        @((MarkupString)imagenSVG)
+        <div class="graphviz-panel @(imagenDespues is null ? "graphviz-panel-unico" : null)">
+            <figure class="graphviz-figura">
+                <figcaption>@(imagenDespues is null ? "Grafo" : "Grafo original")</figcaption>
+                @((MarkupString)imagenAntes)
+            </figure>
+
+            @if (imagenDespues is not null)
+            {
+                <figure class="graphviz-figura">
+                    <figcaption>Ciclo hamiltoniano</figcaption>
+                    @((MarkupString)imagenDespues)
+                </figure>
+            }
+        </div>
     }
 </div>
 
@@ -22,7 +35,8 @@
     [Parameter] public IReadOnlyList<string>? Etiquetas { get; set; }
 
     private IJSObjectReference? _json;
-    private string imagenSVG = "";
+    private string imagenAntes = "";
+    private string? imagenDespues;
     private string? error;
 
     protected override async Task OnParametersSetAsync()
@@ -48,14 +62,35 @@
         {
             if(string.IsNullOrEmpty(NombreGrafico))
                 NombreGrafico = "Grafo ponderado";
-            string dot = ConversorDotFiles.CrearDotFile(
+            imagenAntes = "";
+            imagenDespues = null;
+
+            string dotAntes = ConversorDotFiles.CrearDotFile(
                 Matriz,
                 VerticeInicio,
                 nombreGrafico: NombreGrafico,
-                camino: Ruta,
+                camino: null,
                 esDirigido: EsDirigido,
                 etiquetas: Etiquetas);
-            imagenSVG = string.IsNullOrEmpty(dot) ? "" : await _json!.InvokeAsync<string>("renderDot", dot);
+
+            if (string.IsNullOrEmpty(dotAntes))
+                return;
+
+            var dots = new List<string> { dotAntes };
+
+            if (Ruta is { Count: > 1 })
+                dots.Add(ConversorDotFiles.CrearDotFile(
+                    Matriz,
+                    VerticeInicio,
+                    nombreGrafico: NombreGrafico,
+                    camino: Ruta,
+                    esDirigido: EsDirigido,
+                    etiquetas: Etiquetas,
+                    ocultarOtrasAristas: true));
+
+            string[] svgs = await _json!.InvokeAsync<string[]>("renderDots", (object)dots.ToArray());
+            imagenAntes = svgs[0];
+            imagenDespues = svgs.Length > 1 ? svgs[1] : null;
         }
         catch (ArgumentException ex)
         {

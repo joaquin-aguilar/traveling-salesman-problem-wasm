@@ -1,31 +1,33 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
+﻿<div class="barra-superior">
+    <div class="barra-contenido">
         <a class="navbar-brand" href="">Problema del agente viajero</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+
+        <button title="Navigation menu"
+                class="navbar-toggler"
+                aria-label="Mostrar u ocultar menú"
+                @onclick="ToggleNavMenu">
             <span class="navbar-toggler-icon"></span>
         </button>
-    </div>
-</div>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Acerca del problema
-            </NavLink>
-        </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="tsp">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> TSP
-            </NavLink>
-        </div>
-    </nav>
+        <nav class="@NavMenuCssClass nav-principal" @onclick="ToggleNavMenu">
+            <div class="nav-item">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Acerca del problema
+                </NavLink>
+            </div>
+            <div class="nav-item">
+                <NavLink class="nav-link" href="tsp">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> TSP
+                </NavLink>
+            </div>
+        </nav>
+    </div>
 </div>
 
 @code {
     private bool collapseNavMenu = true;
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    private string? NavMenuCssClass => collapseNavMenu ? null : "abierto";
 
     private void ToggleNavMenu()
     {

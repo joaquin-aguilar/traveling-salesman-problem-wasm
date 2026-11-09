@@ -1,0 +1,47 @@
+.graphviz-render {
+    width: 100%;
+    max-width: none;
+    margin-top: 1rem;
+}
+
+.graphviz-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+    gap: 1rem;
+    width: 100%;
+}
+
+.graphviz-panel-unico {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.graphviz-figura {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    margin: 0;
+    padding: 1rem;
+    background: #fff;
+    border: 1px solid #d8e0ea;
+    border-radius: 14px;
+}
+
+.graphviz-figura figcaption {
+    flex: 0 0 auto;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.graphviz-figura ::deep svg {
+    display: block;
+    width: 100% !important;
+    height: auto !important;
+    max-width: none;
+}
+
+@media (max-width: 900px) {
+    .graphviz-panel {
+        grid-template-columns: 1fr;
+    }
+}
