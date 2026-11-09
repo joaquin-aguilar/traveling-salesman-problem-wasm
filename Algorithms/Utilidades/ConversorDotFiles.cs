@@ -1,8 +1,6 @@
 using System.Text;
 
 namespace traveling_salesman_problem_wasm.Algorithms.Utilidades;
-
-/// <summary>Convierte una matriz de pesos en texto DOT (Graphviz).</summary>
 public static class ConversorDotFiles
 {
     public static string CrearDotFile(
@@ -11,7 +9,8 @@ public static class ConversorDotFiles
         string nombreGrafico = "G",
         IReadOnlyList<int>? camino = null,
         bool esDirigido = false,
-        IReadOnlyList<string>? etiquetas = null)
+        IReadOnlyList<string>? etiquetas = null,
+        bool ocultarOtrasAristas = false)
     {
         if (matriz is null || matriz.Length == 0)
             return string.Empty;
@@ -28,14 +27,13 @@ public static class ConversorDotFiles
 
         var dot = new StringBuilder();
         dot.AppendLine($"{tipoGrafo} {nombreGrafico} {{");
-        dot.AppendLine("  layout=circo;");
-        dot.AppendLine("  normalize=true;");
-        dot.AppendLine("  overlap=false;");
+        dot.AppendLine("  start=1;");
+        dot.AppendLine("  overlap=scale;");
+        dot.AppendLine("  sep=\"+35\";");
         dot.AppendLine("  splines=true;");
-        dot.AppendLine("  node [shape=circle, style=filled, fillcolor=\"#eef3fb\", color=\"#315b8a\", fontname=\"Helvetica\"];");
-        dot.AppendLine("  edge [fontname=\"Helvetica\", fontsize=10];");
+        dot.AppendLine("  node [shape=circle, width=0.7, style=filled, fillcolor=\"#eef3fb\", color=\"#315b8a\", fontname=\"Helvetica\", fontsize=14];");
+        dot.AppendLine("  edge [fontname=\"Helvetica\", fontsize=12];");
 
-        // Vértices
         for (int i = 0; i < n; i++)
         {
             var atributos = new List<string>();
@@ -51,7 +49,8 @@ public static class ConversorDotFiles
                 : $"  {NombreVertice(i)} [{string.Join(", ", atributos)}];");
         }
 
-        // Aristas. En un grafo no dirigido se recorre solo la mitad superior de la matriz.
+        (int pesoMin, int pesoMax) = RangoPesos(matriz, esDirigido);
+
         for (int i = 0; i < n; i++)
         {
             for (int j = esDirigido ? 0 : i + 1; j < n; j++)
@@ -61,9 +60,18 @@ public static class ConversorDotFiles
                 if (i == j || peso <= 0)
                     continue;
 
-                string atributos = aristasRecorrido.Contains((i, j))
-                    ? $"label=\"{peso}\", color=\"#d63384\", fontcolor=\"#d63384\", penwidth=2.5"
-                    : $"label=\"{peso}\"";
+                string longitud = LongitudArista(peso, pesoMin, pesoMax);
+                bool enCamino = aristasRecorrido.Contains((i, j));
+
+                if (ocultarOtrasAristas && camino is not null && !enCamino)
+                {
+                    dot.AppendLine($"  {NombreVertice(i)} {conector} {NombreVertice(j)} [label=\"{peso}\", len={longitud}, style=invis];");
+                    continue;
+                }
+
+                string atributos = enCamino
+                    ? $"label=\"{peso}\", len={longitud}, color=\"#d63384\", fontcolor=\"#d63384\", penwidth=2.5"
+                    : $"label=\"{peso}\", len={longitud}";
 
                 dot.AppendLine($"  {NombreVertice(i)} {conector} {NombreVertice(j)} [{atributos}];");
             }
@@ -73,16 +81,35 @@ public static class ConversorDotFiles
         return dot.ToString();
     }
 
+    private static (int Min, int Max) RangoPesos(int[][] matriz, bool esDirigido)
+    {
+        int min = int.MaxValue, max = int.MinValue;
+
+        for (int i = 0; i < matriz.Length; i++)
+            for (int j = 0; j < matriz.Length; j++)
+            {
+                if (i == j || matriz[i][j] <= 0 || (!esDirigido && j < i))
+                    continue;
+
+                min = Math.Min(min, matriz[i][j]);
+                max = Math.Max(max, matriz[i][j]);
+            }
+
+        return min == int.MaxValue ? (1, 1) : (min, max);
+    }
+
+    private static string LongitudArista(int peso, int min, int max)
+    {
+        double t = max == min ? 0.5 : (double)(peso - min) / (max - min);
+        return (2.5 + 4.0 * t).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     private static string NombreVertice(int indice)
         => indice < 26 ? ((char)('A' + indice)).ToString() : $"V{indice}";
 
     private static string EscaparEtiqueta(string etiqueta)
         => etiqueta.Replace("\\", "\\\\").Replace("\"", "\\\"");
 
-    /// <summary>
-    /// Aristas que forman el camino. Si el grafo no es dirigido se guardan
-    /// siempre como (menor, mayor) para poder buscarlas sin importar el sentido.
-    /// </summary>
     private static HashSet<(int, int)> CrearAristasRecorrido(IReadOnlyList<int>? camino, int[][] matriz, bool esDirigido)
     {
         var aristas = new HashSet<(int, int)>();
