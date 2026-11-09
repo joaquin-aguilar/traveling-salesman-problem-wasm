@@ -3,11 +3,7 @@ using traveling_salesman_problem_wasm.Models;
 
 namespace traveling_salesman_problem_wasm.Algorithms;
 
-/// <summary>
-/// Prueba todas las rutas posibles (backtracking) y devuelve la de menor costo.
-/// Se descartan las rutas parciales que ya cuestan más que la mejor encontrada.
-/// </summary>
-internal class FuerzaBrutaTSP
+internal class FuerzaBrutaTSP : IResolver
 {
     private readonly ProblemaTSP _problema;
 
@@ -46,7 +42,6 @@ internal class FuerzaBrutaTSP
         return new SolucionTSP(_problema, ruta, _mejorCosto);
     }
 
-    /// <summary>Cantidad de ciclos distintos que existen: (n-1)! o (n-1)!/2 si es no dirigido.</summary>
     public long CiclosPosibles()
     {
         long ciclos = CalculosMatematica.Factorial(_problema.NumeroVertices - 1);
@@ -61,7 +56,6 @@ internal class FuerzaBrutaTSP
         int n = _problema.NumeroVertices;
         int anterior = _rutaActual[posicion - 1];
 
-        // Ruta completa: solo falta volver al vértice inicial.
         if (posicion == n)
         {
             int inicio = _rutaActual[0];
